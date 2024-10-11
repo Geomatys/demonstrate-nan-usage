@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.geomatys</groupId>
+  <artifactId>NaN</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <name>NaN usage demonstration</name>
+  <description>
+    Demonstrates how NaNs can be used with raster data instead of "no data" values.
+    This demo performs interpolations in a grid of random values where some values
+    are missing for different reasons, identified by the pad values. Two variants
+    are provided: one using NaN, and one using "no data". This demo shows how NaN
+    works, and opportunistically compares the performance compared to the "no data"
+    approach.
+  </description>
+
+  <developers>
+    <developer>
+      <id>desruisseaux</id>
+      <name>Martin Desruisseaux</name>
+      <email>martin.desruisseaux@geomatys.com</email>
+      <organization>Geomatys</organization>
+      <organizationUrl>https://www.geomatys.com</organizationUrl>
+      <timezone>+1</timezone>
+      <roles>
+        <role>Java developer</role>
+      </roles>
+    </developer>
+  </developers>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>22</maven.compiler.release>
+    <exec.mainClass>com.geomatys.nan.TestNaN</exec.mainClass>
+  </properties>
+</project>
