@@ -119,13 +119,7 @@ public class TestNaN extends TestCase {
                              * conversion only because we choose to store missing values as "no data" in the
                              * "expected-results.raw" file.
                              */
-                            final double nodata;
-                            switch (max) {
-                                case CLOUD:   nodata = TestNodata.CLOUD;   break;
-                                case LAND:    nodata = TestNodata.LAND;    break;
-                                case NO_PASS: nodata = TestNodata.NO_PASS; break;
-                                default:      nodata = TestNodata.UNKNOWN; break;
-                            }
+                            final double nodata = (max - CLOUD) + TestNodata.CLOUD;
                             if (nodata != expectedResults.getDouble()) {
                                 nodataMismatches[it]++;
                             }
@@ -154,7 +148,14 @@ public class TestNaN extends TestCase {
      * @throws IOException if an error occurred while reading a file.
      */
     public static void main(String[] args) throws IOException {
+        System.out.println("NaN values in big endian");
         var test = new TestNaN(false);
+        test.computeAndCompare();
+        test.printStatistics();
+
+        System.out.println();
+        System.out.println("NaN values in little endian");
+        test = new TestNaN(true);
         test.computeAndCompare();
         test.printStatistics();
     }

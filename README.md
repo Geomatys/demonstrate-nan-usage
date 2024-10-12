@@ -10,13 +10,13 @@ the classical approach based on "no data" sentinel values, used as a reference.
 # Misunderstandings about NaN
 
 ## "There is only one NaN, while we need many no-data values"
-**FALSE:** the IEEE 754 `float` type has 8,388,608 distinct quiet NaN values, and as many signaling NaNs
-(ignored in this discussion). The IEEE 754 `double` type has over 10¹⁵ distinct quiet NaNs.
+This is false. The IEEE 754 `float` type has 8,388,608 distinct quiet NaN values
+(ignoring signaling NaNs) while the `double` type has over 10¹⁵ distinct quiet NaNs.
 When the bit pattern of a `float` is interpreted as an `int`, all values in the range `0x7fc00000` to
 `0x7fffffff` inclusive are NaN values. This is not the only range of NaN values, but this is the most
 convenient range and the one used in this demo.
 
-**Demonstration:**
+### Demonstration
 For proving that point, this demo uses five distinct NaN values:
 
   * `CLOUD`   for a value missing because of a cloud.
@@ -27,7 +27,21 @@ For proving that point, this demo uses five distinct NaN values:
 In order to demonstrate that NaN values can be analyzed, the bilinear interpolation arbitrarily applies the following rule:
 if exactly one value needed for the interpolation is missing, the interpolation result is missing for the same reason.
 If two or more needed values are missing, the interpolation result is missing for the reason having the highest priority
-in that order: `UNKNOWN`, `NO_PASS`, `LAND`, and `CLOUD`.
+in that order (highest priority first): `UNKNOWN`, `NO_PASS`, `LAND`, and `CLOUD`.
+
+
+## "Not the right semantic (we want `null`, `unknown`, …)"
+NaN means "Not A Number". There is no semantic associated to why a value is NaN. It can be any reason at user's choice.
+With more than 4 millions distinct NaN values available, there is plenty of room for assigning whatever semantic we want
+to different values. Assigning a "no data" meaning to, e.g., -9999, which *is* a number contrarily to NaN,
+is not semantically better.
+
+NaN cannot represent directly a JavaScript `null` or `unknown` value (real values such as -9999 cannot neither).
+But `null` and `unknown` semantics are a layer on top of the IEEE 754 values. For example, in the Java language
+and C/C++ languages, `null` values cannot be assigned to primitive types. It can only be assigned to wrappers
+(Java) or pointers (C/C++). For example, a `java.lang.Float` (in Java) or a `float*` (in C/C++) can be null,
+but a `float` cannot. In JavaScript, the fact that `null` and `unknown` apply to all kinds of object
+is an indication that they are handled at a level other than primitive types.
 
 
 ## "The payload that distinguish NaN values may be lost"
@@ -38,13 +52,13 @@ If data are compressed, decompression algorithms such as GZIP usually operate on
 Next, the conversion from big-endian byte order to little-endian or conversely is applied on **bytes**.
 Only after all those steps have been completed, the final result is interpreted as an array of floating-point values.
 Casting a `byte*` pointer to a `float*` pointer in C/C++ does not rewrite the array,
-it only change the way that the computer interprets the bit patterns that are stored in the array.
-Even after the cast, if a `float` array need to be copied, the `memcpy` (C/C++) or `System.arraycopy` (Java)
+it only changes the way that the computer interprets the bit patterns that are stored in the array.
+Even after the cast, if a `float` array needs to be copied, the `memcpy` (C/C++) or `System.arraycopy` (Java)
 functions copy bytes without doing any interpretation or conversion of the bit patterns.
 Nowhere the Floating-Point Unit (FPU) needs to be involved.
-Therefore, there is no way that the NaN's payload can be lost with above steps.
+Therefore, there is no way that the NaN's payload can be lost with the above steps.
 
-**Demonstration:**
+### Demonstration
 This demo provides the same raster data in two versions:
 one file using big-endian byte order, and another file using little-endian byte order.
 The demo reads the binary files, changes the byte order if needed, then interprets the result as floating-point values.
@@ -55,24 +69,25 @@ Execution shows that no payload is lost.
 ## "Payload propagation is implementation-dependent"
 When a quiet NaN value is used in an arithmetic operation, IEEE 754 _recommends_ that the result is the same NaN as the operand.
 But this is not mandatory and the actual behavior may vary depending on platform, language or optimizations applied.
-Furthermore, the situation is yet more uncertain when two or more operands are different quiet NaN values.
+Furthermore, the situation is yet more uncertain when two or more operands are different NaN values.
 Which one takes precedence?
-Empirical tests suggests that, at least with Java 22 on Intel® Core™ i7-8750H, the leftmost operand takes precedence
+Empirical tests suggest that, at least with Java 22 on Intel® Core™ i7-8750H, the leftmost operand takes precedence
 in additions and multiplications, while the rightmost operand takes precedence in subtractions and divisions.
 However, despite this uncertainty, we still have the guarantee that the result will be _some_ NaN value.
 The fact that we don't know for sure _which_ NaN values is not worst than the approach using "no data" sentinel values.
-For example, when computing the average value of {2 8 9999 3} where 9999 represents a missing value,
-if the developers forget to check for missing values, they will get 2503.
+For example, when computing the average value of {2, 8, 9999, 3} where 9999 represents a missing value,
+if developers forget to check for missing values, they will get 2503.
 Subsequent operations consuming that value are likely to fail to recognize 2503 as a missing value,
 leading to unpredictable consequences (the first Ariane V rocket exploded because of a floating-point overflow).
 By contrast, when using NaN, developers get a NaN result even if they forgot to check for missing values.
-Even if _which_ NaN they got is uncertain, it is still better than an accidental value indistinguishable from real values.
+Even if we are uncertain about _which_ NaN they got,
+it is still better than an accidental value indistinguishable from real values.
 Above example computed the average of only 4 values. But larger is the number of values to average,
 more difficult it become to notice "no data" sentinel values pollution.
 
-**Demonstration:**
+### Demonstration
 Applications using "no data" sentinel values need to check for missing values _before_ using them in calculations.
-The same is true for applications using NaN values if they wish to distinguish between the different NaN payloads.
+The same is true (in a more flexible way) for applications using NaN values if they wish to distinguish between the different NaN payloads.
 However, users of NaN values have two additional flexibilities that users of "no data" sentinel values do not have:
 
 * If an application doesn't care about the reason why a value is missing, it can skip the check completely.
@@ -88,7 +103,7 @@ This strategy can provide a performance gain when the majority of the values are
 ### Note on signaling NaNs
 All the discussion in this page and all demos in this project apply to _quiet_ NaNs.
 Another kind of NaN exists, named _signaling_ NaNs.
-The two kinds of NaN are differentiated by bit #22, which shall be 1 for quiet NaNs.
+The two kinds of NaN are differentiated by the bit #22, which shall be 1 for quiet NaNs.
 Signaling NaNs are out of scope for this discussion.
 In particular, signaling NaNs may be silently converted to quiet NaNs, or may cause an interrupt.
 They are used for different purposes (e.g., lazy initialization) than the "no data" purpose discussed here.
@@ -100,14 +115,14 @@ especially if we ignore the arbitrary choice of testing NaN after the calculatio
 Using NaN in Java and C/C++ does not bring significant complexity compared to using "no data" sentinel values.
 NaN values are as reliable as "no data" values: payload cannot be lost during read and copy operations.
 On the other hand, using NaN provides a level of safety impossible to achieve with "no data" values,
-as accidental sentinel value pollution is impossible.
+as developers are protected against accidental sentinel value pollution.
 
 ## Note on an optimization strategy (optional)
 `TestNaN` and `TestNodata` both use the same optimization strategy for selecting a missing reason
 in `UNKNOWN`, `NO_PASS`, `LAND`, and `CLOUD` precedence order. This demo exploits the facts that:
 
-1. All "no data" values used in this demo are greater than valid values.
-2. "No data" values are sorted with higher values for the reasons having precedence.
+1. All "no data" values used in this demo are greater than all valid values.
+2. Missing reasons having highest priority are assigned highest "No data" values.
 
 The combination of those two facts allows us to simply check for the maximal value,
 no matter if we have a mix of "no data" and real values. However, this trick would not work
@@ -116,4 +131,4 @@ If they were smaller, some `>=` operators would need to be replaced by `<=` in t
 (in addition of the `max` function being not applicable anymore).
 `TestNodata` would be yet more complex if we had a mix of "no data" smaller and greater than real values
 (the use of `abs` could reduce that complexity, but requires positive and negative "no data" in the same range of absolute values).
-By contrast, NaN can rely more on condition 1, as demonstrated in `TestNaN`, thus leading to simpler code.
+By contrast, optimizations can be done more easily with NaN because condition equivalent to #1 is more reliable.

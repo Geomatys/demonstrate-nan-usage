@@ -147,7 +147,14 @@ public class TestNodata extends TestCase {
      * @throws IOException if an error occurred while reading a file.
      */
     public static void main(String[] args) throws IOException {
+        System.out.println("\"No data\" sentinal values in big endian");
         var test = new TestNodata(false);
+        test.computeAndCompare();
+        test.printStatistics();
+
+        System.out.println();
+        System.out.println("\"No data\" sentinal values in little endian");
+        test = new TestNodata(true);
         test.computeAndCompare();
         test.printStatistics();
     }

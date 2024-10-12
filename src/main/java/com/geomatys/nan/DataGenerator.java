@@ -52,7 +52,7 @@ public final class DataGenerator extends TestCase {
     private DataGenerator(final boolean useNaN, final boolean littleEndian) {
         super(useNaN, littleEndian);
         random = new Random(2082799447325596418L);
-        precision = new MathContext(40, RoundingMode.HALF_EVEN);
+        precision = new MathContext(20, RoundingMode.HALF_EVEN);
     }
 
     /**
@@ -141,11 +141,11 @@ public final class DataGenerator extends TestCase {
                         /*
                          * Apply the bilinear interpolation and compare against the expected value.
                          */
-                        BigDecimal xf = x.subtract(xb, precision);
-                        BigDecimal yf = y.subtract(yb, precision);
-                        BigDecimal v0 = v01.subtract(v00, precision).multiply(xf, precision).add(v00, precision);
-                        BigDecimal v1 = v11.subtract(v10, precision).multiply(xf, precision).add(v10, precision);
-                        value = v1.subtract(v0, precision).multiply(yf, precision).add(v0, precision);
+                        BigDecimal xf = x.subtract(xb);
+                        BigDecimal yf = y.subtract(yb);
+                        BigDecimal v0 = v01.subtract(v00).multiply(xf).add(v00);
+                        BigDecimal v1 = v11.subtract(v10).multiply(xf).add(v10);
+                        value = v1.subtract(v0).multiply(yf).add(v0);
                     }
                     /*
                      * Store the result and move to the next position. This is where drift may happen and the reason why
@@ -156,8 +156,8 @@ public final class DataGenerator extends TestCase {
                     if (isMissing) {
                         value = BigDecimal.ONE;     // For moving to another position.
                     }
-                    coordinates[ix] = x.add(value, precision).abs().remainder(width,  precision).doubleValue();
-                    coordinates[iy] = y.add(value, precision).abs().remainder(height, precision).doubleValue();
+                    coordinates[ix] = x.add(value).abs().remainder(width,  precision).doubleValue();
+                    coordinates[iy] = y.add(value).abs().remainder(height, precision).doubleValue();
                 }
                 results.rewind();
                 do output.write(results);
@@ -168,13 +168,24 @@ public final class DataGenerator extends TestCase {
     }
 
     /**
-     * Reformats the data written by the given generator.
-     * This method can change the byte order.
+     * Reformats the raster data for changing byte order and/or replacing "no data" by NaN values.
      */
-    private void reformat(final DataGenerator data) throws IOException {
+    private void reformat(final DataGenerator data, final boolean toNaN) throws IOException {
         var source = ByteBuffer.wrap(Files.readAllBytes(data.rasterFile)).order(data.byteOrder);
         var target = ByteBuffer.allocate(source.capacity()).order(byteOrder);
-        target.asDoubleBuffer().put(source.asDoubleBuffer());
+        var floats = target.asFloatBuffer();
+        floats.put(source.asFloatBuffer());
+        if (toNaN) {
+            floats.rewind();
+            while (floats.hasRemaining()) {
+                float value = floats.get();
+                if (value >= TestNodata.MISSING_VALUE_THRESHOLD) {
+                    value = Float.intBitsToFloat(Math.round(value - TestNodata.CLOUD) + TestNaN.CLOUD);
+                    assert Float.isNaN(value) : value;
+                    floats.put(floats.position() - 1, value);
+                }
+            }
+        }
         Files.write(rasterFile, target.array(), writeOptions());
     }
 
@@ -197,9 +208,16 @@ public final class DataGenerator extends TestCase {
      * @throws IOException if an error occurred while writing a file.
      */
     public static void main(String[] args) throws IOException {
-        final var data = new DataGenerator(false, false);      // Big endian
-        final var alt1 = new DataGenerator(false, true);       // Little endian
-        data.generate();
-        alt1.reformat(data);
+        final var nodata = new DataGenerator(false, false);       // Big endian
+        final var nans   = new DataGenerator(true,  false);
+        nodata.generate();
+        nans.reformat(nodata, true);
+        new DataGenerator(false, true).reformat(nodata, false);  // Little endian
+        new DataGenerator(true,  true).reformat(nodata, true);   // Little endian and NaN
+
+        Files.deleteIfExists(nans.coordinatesFile);
+        Files.deleteIfExists(nans.expectedResultsFile);
+        Files.createLink(nans.coordinatesFile, nodata.coordinatesFile);
+        Files.createLink(nans.expectedResultsFile, nodata.expectedResultsFile);
     }
 }
