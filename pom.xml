@@ -11,12 +11,13 @@
 
   <name>NaN usage demonstration</name>
   <description>
-    Demonstrates how NaNs can be used with raster data instead of "no data" values.
-    This demo performs interpolations in a grid of random values where some values
-    are missing for different reasons, identified by the pad values. Two variants
-    are provided: one using NaN, and one using "no data". This demo shows how NaN
-    works, and opportunistically compares the performance compared to the "no data"
-    approach.
+    This project demonstrates how NaNs can be used instead of "no data" sentinel values in raster data.
+    This demo aims to answer misunderstandings regarding NaN values, and in particular to refute the idea
+    that NaN values should not be used in geospatial applications. For proving the refutations listed in `README.md`,
+    this demo reads a raster from a RAW file containing values stored as IEEE 754 `float` type, with random
+    missing values encoded as NaNs. Then, bilinear interpolations are performed at random coordinate values
+    and compared against expected values. The expected values are computed with a variant of the code using
+    the classical approach based on "no data" sentinel values, used as a reference.
   </description>
 
   <developers>

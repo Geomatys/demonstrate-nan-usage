@@ -30,7 +30,7 @@ public final class DataGenerator extends TestCase {
      * Inverse of the proportion of "no data" values.
      * A value of 8 means that 1/8 of the data will be missing, i.e. 12.5%
      */
-    private static int NODATA_INVERSE_PROPORTION = 8;
+    private static final int NODATA_INVERSE_PROPORTION = 8;
 
     /**
      * The random generator used for generating raster and coordinate values.
@@ -46,18 +46,22 @@ public final class DataGenerator extends TestCase {
     /**
      * Creates a new data generator.
      *
+     * @param useNaN       should be {@code false}, except during conversions from "no data" to NaN.
      * @param littleEndian {@code true} for little-endian byte order, or {@code false} for big-endian.
      */
-    private DataGenerator(final boolean littleEndian) {
-        super(false, littleEndian);
+    private DataGenerator(final boolean useNaN, final boolean littleEndian) {
+        super(useNaN, littleEndian);
         random = new Random(2082799447325596418L);
-        precision = new MathContext(20, RoundingMode.HALF_EVEN);
+        precision = new MathContext(40, RoundingMode.HALF_EVEN);
     }
 
     /**
-     * Generates and save the raster data, then return the values as big decimals.
-     * We use big decimals for internal computation in this class because an opportunistic goal
-     * of this test is to measure the drifts from expected results caused by compiler options.
+     * Generates and saves the raster data, then returns the values as big decimals.
+     * Raster values are generated randomly, with some values declared as missing.
+     * The reasons for missing values are: {@code CLOUD}, {@code LAND} and {@code NO_PASS}.
+     *
+     * <p>Values are returned as big decimals for internal computation in this class because an
+     * opportunistic goal is to measure the drifts from expected results caused by compiler options.</p>
      *
      * @return the raster data.
      * @throws IOException if an error occurred while writing the data.
@@ -66,7 +70,7 @@ public final class DataGenerator extends TestCase {
         final var raster = new float[WIDTH * HEIGHT];
         for (int i=0; i < raster.length; i++) {
             if (random.nextInt(NODATA_INVERSE_PROPORTION) == 0) {
-                raster[i] = random.nextInt((int) TestNodata.UNKNOWN, (int) TestNodata.MISSING_VALUE_LIMIT + 1);
+                raster[i] = random.nextInt((int) TestNodata.CLOUD, (int) TestNodata.NO_PASS + 1);
             } else {
                 raster[i] = random.nextFloat(-100, 100);
             }
@@ -84,9 +88,10 @@ public final class DataGenerator extends TestCase {
     }
 
     /**
-     * Generates and save the coordinate data.
+     * Generates and save the coordinate data. The coordinate values are generated randomly, but guaranteed
+     * inside the bounds of raster coordinates that can be used for bilinear interpolations (margin included).
      *
-     * @return the coordinate data.
+     * @return the two-dimensional coordinate values.
      * @throws IOException if an error occurred while writing the data.
      */
     private double[] generateCoordinates() throws IOException {
@@ -113,7 +118,7 @@ public final class DataGenerator extends TestCase {
         final double[]     coordinates  = generateCoordinates();
         final ByteBuffer   results      = ByteBuffer.allocate(NUM_INTERPOLATION_POINTS * Double.BYTES);
         try (WritableByteChannel output = Files.newByteChannel(expectedResultsFile, writeOptions())) {
-            for (int it=0; it<NUM_ITERATIONS; it++) {
+            for (int it=0; it<NUM_VERIFIED_ITERATIONS; it++) {
                 for (int i=0; i<NUM_INTERPOLATION_POINTS; i++) {
                     final int ix = i << 1;
                     final int iy = ix | 1;
@@ -130,8 +135,8 @@ public final class DataGenerator extends TestCase {
                     BigDecimal v01    = raster[offset + 1];
                     BigDecimal v10    = raster[offset += WIDTH];
                     BigDecimal v11    = raster[offset + 1];
-                    BigDecimal value  = v00.min(v01).min(v10).min(v11);
-                    boolean isMissing = value.intValue() <= TestNodata.MISSING_VALUE_LIMIT;
+                    BigDecimal value  = v00.max(v01).max(v10).max(v11);
+                    boolean isMissing = value.intValue() >= TestNodata.MISSING_VALUE_THRESHOLD;
                     if (!isMissing) {
                         /*
                          * Apply the bilinear interpolation and compare against the expected value.
@@ -192,8 +197,8 @@ public final class DataGenerator extends TestCase {
      * @throws IOException if an error occurred while writing a file.
      */
     public static void main(String[] args) throws IOException {
-        final var data = new DataGenerator(false);      // Big endian
-        final var alt1 = new DataGenerator(true);       // Little endian
+        final var data = new DataGenerator(false, false);      // Big endian
+        final var alt1 = new DataGenerator(false, true);       // Little endian
         data.generate();
         alt1.reformat(data);
     }

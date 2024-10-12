@@ -19,38 +19,37 @@ import java.util.DoubleSummaryStatistics;
  */
 public class TestNodata extends TestCase {
     /**
-     * Sentinel value for data missing because of a cloud.
+     * Sentinel value for a missing data. A value may be missing for different reasons, which are identified
+     * by different sentinel values. This test uses the following values, in precedence order. For example,
+     * if a calculation involves two pixels missing for {@code CLOUD} and {@code LAND} reasons respectively,
+     * then the result will be considered missing for the {@code LAND} reason.
+     *
+     * <ol>
+     *   <li>Missing for an unknown reason.</li>
+     *   <li>Missing interpolation result because of missing coordinate values.</li>
+     *   <li>Missing because the remote sensor didn't pass over that area.</li>
+     *   <li>Missing because the pixel is on a land (assuming that the data are for some oceanographic phenomenon).</li>
+     *   <li>Missing because of a cloud.</li>
+     * </ol>
      */
-    static final float CLOUD = -9996;
-
-    /**
-     * Sentinel value for data missing because the pixel is on a land.
-     * This is assuming that the data are for some oceanographic phenomenon.
-     * If a calculation involves both {@link #CLOUD} and {@code LAND}, then
-     * {@code LAND} has precedence as the reason why the result is missing.
-     */
-    static final float LAND = -9997;
-
-    /**
-     * Sentinel value for data missing because the remote sensor didn't pass over that area.
-     * This reason has precedence over {@link #LAND} and {@link #CLOUD}.
-     */
-    static final float NO_PASS = -9998;
-
-    /**
-     * Sentinel value for data missing for an unknown reason.
-     * This reason has precedence over all other reasons why a value is missing.
-     */
-    static final float UNKNOWN = -9999;
+    static final float CLOUD   = 9995,
+                       LAND    = 9996,
+                       NO_PASS = 9997,
+                       UNKNOWN = 9999;
 
     /**
      * The threshold used for deciding if a value should be considered as a missing value.
-     * Any value smaller than this threshold is considered a missing value.
+     * Any value greater than this threshold will be considered a missing value.
+     *
+     * <p>Note that this strategy works only if all missing values are greater than all valid values.
+     * Conversely, a strategy where all missing values are smaller than valid values would also work.
+     * However, if the missing values can be anything (for example some of them smaller and some of
+     * them greater than valid values), then the code would need to be more complex and slower.</p>
      */
-    static final float MISSING_VALUE_LIMIT = CLOUD;
+    static final float MISSING_VALUE_THRESHOLD = CLOUD;
 
     /**
-     * Creates a new test.
+     * Creates a new test which will use "no data" sentinel values for identifying the missing values.
      *
      * @param littleEndian {@code true} for little-endian byte order, or {@code false} for big-endian.
      */
@@ -59,8 +58,9 @@ public class TestNodata extends TestCase {
     }
 
     /**
-     * Reads the raster, performs interpolations and compare against expected values.
-     * This method is the interesting part of the test, where both approach (NaN versus "no data") differ.
+     * Reads the raster, performs interpolations and compare against the expected values.
+     * Differences are collected in statistics that can be printed with {@link #printStatistics()}.
+     * This method is the interesting part of the tests, where both approaches (NaN versus "no data") differ.
      *
      * @throws IOException if an error occurred while reading a file.
      */
@@ -70,38 +70,50 @@ public class TestNodata extends TestCase {
         final ByteBuffer expectedResults = ByteBuffer.allocate(NUM_INTERPOLATION_POINTS * Double.BYTES);
         try (ReadableByteChannel input = Files.newByteChannel(expectedResultsFile)) {
             for (int it=0; it<NUM_ITERATIONS; it++) {
-                do input.read(expectedResults);
-                while (expectedResults.hasRemaining());
-                expectedResults.rewind();
-                final var stats = new DoubleSummaryStatistics();
+                final DoubleSummaryStatistics stats = prepareNextVerification(it, input, expectedResults);
                 for (int i=0; i<NUM_INTERPOLATION_POINTS; i++) {
+                    /*
+                     * Get all sample values that we need for the bilinear interpolation.
+                     * Variables starting with "v" are converted from `float` to `double`.
+                     */
                     final int ix = i << 1;
                     final int iy = ix | 1;
                     final double x  = coordinates[ix];
                     final double y  = coordinates[iy];
                     final double xb = Math.floor(x);
                     final double yb = Math.floor(y);
-                    /*
-                     * Get the sample values that we need for the interpolation
-                     * and check if any of them is flagged as a missing value.
-                     *
-                     * Optimization: the "no data" value having precedence have the lowest values.
-                     * So the result is simply the minimal value, no matter if some values are not
-                     * missing values.
-                     */
+
                     int offset = WIDTH * ((int) yb) + ((int) xb);
                     final double v00 = raster[offset];
                     final double v01 = raster[offset + 1];
                     final double v10 = raster[offset += WIDTH];
                     final double v11 = raster[offset + 1];
-                    final double min = Math.min(Math.min(v00, v01), Math.min(v10, v11));
-                    final double expected = expectedResults.getDouble();
-                    double value;
-                    if (min <= MISSING_VALUE_LIMIT) {
-                        if (min != expected) {
-                            nodataMismatches[it]++;
+                    final double result;    // To be computed below.
+                    /*
+                     * Check if any raster value is missing. When sentinel values are used (as in this demo),
+                     * this check must be done before the calculation. As an optimization, we exploit the facts
+                     * that in this test:
+                     *
+                     *   1) All "no data" values used in this demo are greater than valid values.
+                     *   2) "No data" values are sorted with higher values for the reasons having precedence.
+                     *
+                     * The combination of those two facts allows us to simply check for the maximal value,
+                     * no matter if we have a mix of "no data" and real values. However, this trick would not work
+                     * anymore if we didn't knew in advance that all "no data" are greater than all valid values.
+                     * If they were smaller, the code below would need to use `<=` instead of `>=` (in addition of
+                     * `max` being not applicable anymore). The code would be yet more complex if we had a mix of
+                     * "no data" smaller and greater than real values.
+                     */
+                    final double max = Math.max(
+                            Math.max(v00, v01),
+                            Math.max(v10, v11));
+                    if (max >= MISSING_VALUE_THRESHOLD) {
+                        if (stats != null) {
+                            if (max != expectedResults.getDouble()) {
+                                nodataMismatches[it]++;
+                            }
                         }
-                        value = 1;      // For moving to another position during the next iteration.
+                        result = 1;      // For moving to another position during the next iteration.
                     } else {
                         /*
                          * Apply the bilinear interpolation and compare against the expected value.
@@ -110,14 +122,19 @@ public class TestNodata extends TestCase {
                         double yf = y - yb;
                         double v0 = Math.fma(v01 - v00, xf, v00);
                         double v1 = Math.fma(v11 - v10, xf, v10);
-                        value = Math.fma(v1 - v0, yf, v0);
-                        stats.accept(Math.abs(value - expected));
+                        result = Math.fma(v1 - v0, yf, v0);
+                        if (stats != null) {
+                            final double expected = expectedResults.getDouble();
+                            if (expected >= MISSING_VALUE_THRESHOLD) {
+                                nodataMismatches[it]++;
+                            } else {
+                                stats.accept(Math.abs(result - expected));
+                            }
+                        }
                     }
-                    coordinates[ix] = Math.abs(x + value) % (WIDTH  - 1);
-                    coordinates[iy] = Math.abs(y + value) % (HEIGHT - 1);
+                    coordinates[ix] = Math.abs(x + result) % (WIDTH  - 1);
+                    coordinates[iy] = Math.abs(y + result) % (HEIGHT - 1);
                 }
-                errorStatistics[it] = stats;
-                expectedResults.clear();
             }
         }
     }
