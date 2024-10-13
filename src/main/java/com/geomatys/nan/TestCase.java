@@ -11,6 +11,7 @@ import java.nio.DoubleBuffer;
 import java.nio.FloatBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.DoubleSummaryStatistics;
 
 
@@ -36,6 +37,17 @@ public abstract class TestCase extends Configuration {
     final int[] nodataMismatches;
 
     /**
+     * During test execution, this is the start time of non-verified iterations.
+     * Used only for performance measurements.
+     */
+    private long startTime;
+
+    /**
+     * Elapsed time in milliseconds. For performance measurements only.
+     */
+    private final DoubleSummaryStatistics elapsedTime;
+
+    /**
      * Creates a new test case.
      *
      * @param useNaN       {@code true} if using NaN, or {@code false} if using "no data".
@@ -45,6 +57,7 @@ public abstract class TestCase extends Configuration {
         super(useNaN, littleEndian);
         errorStatistics  = new DoubleSummaryStatistics[NUM_VERIFIED_ITERATIONS];
         nodataMismatches = new int[NUM_VERIFIED_ITERATIONS];
+        elapsedTime      = new DoubleSummaryStatistics();
     }
 
     /**
@@ -93,6 +106,9 @@ public abstract class TestCase extends Configuration {
             final ReadableByteChannel input, final ByteBuffer expectedResults) throws IOException
     {
         if (it >= NUM_VERIFIED_ITERATIONS) {
+            if (it == NUM_VERIFIED_ITERATIONS) {
+                startTime = System.nanoTime();
+            }
             return null;
         }
         expectedResults.clear();
@@ -104,12 +120,16 @@ public abstract class TestCase extends Configuration {
     }
 
     /**
-     * Returns whether the test is considered a success. The test is considered successful
-     * if the first iterations have no errors. A drift is tolerated in the last iterations
-     * because this test intentionally uses a chaotic algorithm in order to test the effect
-     * of optimizations enabled by compiler options in the C/C++ variant of this test.
+     * Runs the test, records the elapsed time and returns whether the test was successful.
+     * The test is considered successful if the first iterations have no errors.
+     * A drift is tolerated in the last iterations because this test intentionally
+     * uses chaotic algorithm in order to test the effect of optimizations enabled
+     * by compiler options in the C/C++ variant of this test.
      */
-    private boolean success() {
+    private boolean run() throws IOException {
+        Arrays.fill(nodataMismatches, 0);
+        computeAndCompare();
+        elapsedTime.accept((System.nanoTime() - startTime) / 1E+6);
         for (int i=0; i<NUM_VERIFIED_ITERATIONS; i++) {
             if (nodataMismatches[i] != 0) {
                 if (i < 8) {
@@ -157,6 +177,7 @@ public abstract class TestCase extends Configuration {
      * @param  args ignored.
      * @throws IOException if an error occurred while reading or writing a file.
      */
+    @SuppressWarnings("UseOfSystemOutOrSystemErr")
     public static void main(String[] args) throws IOException {
         final TestCase reference = new TestNodata(false);
         if (Files.notExists(reference.rasterFile)) {
@@ -164,19 +185,38 @@ public abstract class TestCase extends Configuration {
             DataGenerator.main(args);
         }
         final TestCase[] tests = {
+            reference,
             new TestNodata(true),       // "No data" sentinel value in little-endian byte order.
             new TestNaN(false),         // NaN in big-endian byte order.
             new TestNaN(true)           // NaN in little-endian byte order.
         };
-        boolean success = reference.success();
-        reference.computeAndCompare();
-        for (TestCase test : tests) {
-            test.computeAndCompare();
-            if (!reference.resultEquals(test)) {
-                test.printStatistics();
-                success = false;
+        boolean success = true;
+        final var times = new DoubleSummaryStatistics[tests.length];
+        Arrays.setAll(times, (i) -> new DoubleSummaryStatistics());
+        System.out.println("Running 20 iterations of the tests.");
+        for (int i=0; i<20; i++) {
+            for (TestCase test : tests) {
+                success &= test.run();
+                if (!reference.resultEquals(test)) {
+                    test.printStatistics();
+                    success = false;
+                }
             }
         }
+        System.out.println();
+        System.out.println("Execution times:");
+        for (TestCase test : tests) {
+            System.out.printf("%10s: min=%5.3f avg=%5.3f  max=%5.3f milliseconds%n",
+                    test.useNaN ? "NaN" : "No data",
+                    test.elapsedTime.getMin(),
+                    test.elapsedTime.getAverage(),
+                    test.elapsedTime.getMax());
+        }
+        System.out.println();
+        System.out.println("Note: differences are not necessarily due to \"no data\" versus NaN,");
+        System.out.println("because the two tests differ also on whether \"no data\" checks are");
+        System.out.println("performed before or after the interpolations.");
+        System.out.println();
         if (success) {
             tests[1].printStatistics();     // NaN in big-endian byte order.
             System.out.println("Success (mismatches in the last iterations are normal).");
