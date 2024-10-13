@@ -165,5 +165,15 @@ class TestCase {
             System.out.printf("%8d %11.4f %11.4f %11.4f %6d%n",
                     stats.getCount(), stats.getMin(), stats.getAverage(), stats.getMax(), nodataMismatches[i]);
         }
+        for (int i=0; i<NUM_VERIFIED_ITERATIONS; i++) {
+            if (nodataMismatches[i] != 0) {
+                if (i < 8) {
+                    System.out.println("TEST FAILURE.");
+                    return;
+                }
+                break;
+            }
+        }
+        System.out.println("Success (mismatches in the last iterations are normal).");
     }
 }

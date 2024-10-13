@@ -84,11 +84,11 @@ public class TestNodata extends TestCase {
                     final double yb = Math.floor(y);
 
                     int offset = WIDTH * ((int) yb) + ((int) xb);
-                    final double v00 = raster[offset];
-                    final double v01 = raster[offset + 1];
-                    final double v10 = raster[offset += WIDTH];
-                    final double v11 = raster[offset + 1];
-                    final double result;    // To be computed below.
+                    final float v00 = raster[offset];
+                    final float v01 = raster[offset + 1];
+                    final float v10 = raster[offset += WIDTH];
+                    final float v11 = raster[offset + 1];
+                    double result;    // To be computed below.
                     /*
                      * Check if any raster value is missing. When sentinel values are used (as in this demo),
                      * this check must be done before the calculation. As an optimization, we exploit the facts
@@ -104,12 +104,12 @@ public class TestNodata extends TestCase {
                      * `max` being not applicable anymore). The code would be yet more complex if we had a mix of
                      * "no data" smaller and greater than real values.
                      */
-                    final double max = Math.max(
+                    final float missingValueReason = Math.max(
                             Math.max(v00, v01),
                             Math.max(v10, v11));
-                    if (max >= MISSING_VALUE_THRESHOLD) {
+                    if (missingValueReason >= MISSING_VALUE_THRESHOLD) {
                         if (stats != null) {
-                            if (max != expectedResults.getDouble()) {
+                            if (missingValueReason != expectedResults.getDouble()) {
                                 nodataMismatches[it]++;
                             }
                         }
@@ -120,8 +120,8 @@ public class TestNodata extends TestCase {
                          */
                         double xf = x - xb;
                         double yf = y - yb;
-                        double v0 = Math.fma(v01 - v00, xf, v00);
-                        double v1 = Math.fma(v11 - v10, xf, v10);
+                        double v0 = Math.fma(v01 - (double) v00, xf, v00);
+                        double v1 = Math.fma(v11 - (double) v10, xf, v10);
                         result = Math.fma(v1 - v0, yf, v0);
                         if (stats != null) {
                             final double expected = expectedResults.getDouble();

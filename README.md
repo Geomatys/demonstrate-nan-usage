@@ -6,6 +6,19 @@ missing values encoded as NaNs. Then, bilinear interpolations are performed at r
 and compared against expected values. The expected values are computed with a variant of the code using
 the classical approach based on "no data" sentinel values, used as a reference.
 
+**Table of content:**
+
+* Misunderstandings about NaN
+  * ["There is only one NaN, while we need many no-data values"](#there-is-only-one-nan-while-we-need-many-no-data-values)
+  * ["Not the right semantic (we want `null`, `unknown`, …)"](#not-the-right-semantic-we-want-null-unknown-)
+  * ["The payload that distinguish NaN values may be lost"](#the-payload-that-distinguish-nan-values-may-be-lost)
+  * ["Payload propagation is implementation-dependent"](#payload-propagation-is-implementation-dependent)
+* [Analysis](#analysis)
+  * [Code differences](#code-differences)
+  * [Note on an optimization strategy (optional)](#note-on-an-optimization-strategy-optional)
+* [Running the tests](#running-the-tests)
+
+
 
 # Misunderstandings about NaN
 
@@ -117,6 +130,10 @@ NaN values are as reliable as "no data" values: payload cannot be lost during re
 On the other hand, using NaN provides a level of safety impossible to achieve with "no data" values,
 as developers are protected against accidental sentinel value pollution.
 
+## Code differences
+The difference between the `TestNodata` and `TestNaN` is described in a [separated page](differences.md).
+
+
 ## Note on an optimization strategy (optional)
 `TestNaN` and `TestNodata` both use the same optimization strategy for selecting a missing reason
 in `UNKNOWN`, `NO_PASS`, `LAND`, and `CLOUD` precedence order. This demo exploits the facts that:
@@ -132,3 +149,20 @@ If they were smaller, some `>=` operators would need to be replaced by `<=` in t
 `TestNodata` would be yet more complex if we had a mix of "no data" smaller and greater than real values
 (the use of `abs` could reduce that complexity, but requires positive and negative "no data" in the same range of absolute values).
 By contrast, optimizations can be done more easily with NaN because condition equivalent to #1 is more reliable.
+
+
+## Running the tests
+The same test is available in the following languages:
+Java.
+All commands listed below should be executed in a Unix shell with the project root directory
+(the directory containing this `README.md` file) as the current directory.
+
+# Java
+Requirements: Java 17 or later, Maven 3 or later.
+
+```bash
+mvn clean package
+java --module-path target/NaN-1.0-SNAPSHOT.jar --module com.geomatys.nan/com.geomatys.nan.DataGenerator
+java --module-path target/NaN-1.0-SNAPSHOT.jar --module com.geomatys.nan/com.geomatys.nan.TestNodata
+java --module-path target/NaN-1.0-SNAPSHOT.jar --module com.geomatys.nan/com.geomatys.nan.TestNaN
+```

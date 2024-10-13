@@ -37,10 +37,10 @@ public class TestNaN extends TestCase {
      *   <li>Missing because of a cloud.</li>
      * </ol>
      */
-    static final int CLOUD   = FIRST_QUIET_NAN | 1,     // Note: using | operator, but + would work as well.
-                     LAND    = FIRST_QUIET_NAN | 2,
-                     NO_PASS = FIRST_QUIET_NAN | 3,
-                     UNKNOWN = FIRST_QUIET_NAN | 5;
+    static final int CLOUD   = FIRST_QUIET_NAN + 1,
+                     LAND    = FIRST_QUIET_NAN + 2,
+                     NO_PASS = FIRST_QUIET_NAN + 3,
+                     UNKNOWN = FIRST_QUIET_NAN + 5;
 
     /**
      * Creates a new test which will use NaN for identifying the missing values.
@@ -110,7 +110,7 @@ public class TestNaN extends TestCase {
                      */
                     if (Double.isNaN(result)) {
                         if (stats != null) {
-                            final int max = Math.max(
+                            final int missingValueReason = Math.max(
                                     Math.max(Float.floatToRawIntBits(v00), Float.floatToRawIntBits(v01)),
                                     Math.max(Float.floatToRawIntBits(v10), Float.floatToRawIntBits(v11)));
                             /*
@@ -119,7 +119,7 @@ public class TestNaN extends TestCase {
                              * conversion only because we choose to store missing values as "no data" in the
                              * "expected-results.raw" file.
                              */
-                            final double nodata = (max - CLOUD) + TestNodata.CLOUD;
+                            final double nodata = (missingValueReason - CLOUD) + TestNodata.CLOUD;
                             if (nodata != expectedResults.getDouble()) {
                                 nodataMismatches[it]++;
                             }
