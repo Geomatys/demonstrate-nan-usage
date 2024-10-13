@@ -25,7 +25,7 @@ import java.util.random.RandomGenerator;
  *
  * @author Martin Desruisseaux (Geomatys)
  */
-public final class DataGenerator extends TestCase {
+public final class DataGenerator extends Configuration {
     /**
      * Inverse of the proportion of "no data" values.
      * A value of 8 means that 1/8 of the data will be missing, i.e. 12.5%
@@ -48,11 +48,13 @@ public final class DataGenerator extends TestCase {
      *
      * @param useNaN       should be {@code false}, except during conversions from "no data" to NaN.
      * @param littleEndian {@code true} for little-endian byte order, or {@code false} for big-endian.
+     * @throws IOException if the {@code target/data} directory does not exist and cannot be created.
      */
-    private DataGenerator(final boolean useNaN, final boolean littleEndian) {
+    private DataGenerator(final boolean useNaN, final boolean littleEndian) throws IOException {
         super(useNaN, littleEndian);
         random = new Random(2082799447325596418L);
         precision = new MathContext(20, RoundingMode.HALF_EVEN);
+        Files.createDirectories(rasterFile.getParent());
     }
 
     /**
@@ -170,12 +172,12 @@ public final class DataGenerator extends TestCase {
     /**
      * Reformats the raster data for changing byte order and/or replacing "no data" by NaN values.
      */
-    private void reformat(final DataGenerator data, final boolean toNaN) throws IOException {
+    private void reformat(final DataGenerator data) throws IOException {
         var source = ByteBuffer.wrap(Files.readAllBytes(data.rasterFile)).order(data.byteOrder);
         var target = ByteBuffer.allocate(source.capacity()).order(byteOrder);
         var floats = target.asFloatBuffer();
         floats.put(source.asFloatBuffer());
-        if (toNaN) {
+        if (useNaN) {
             floats.rewind();
             while (floats.hasRemaining()) {
                 float value = floats.get();
@@ -211,9 +213,9 @@ public final class DataGenerator extends TestCase {
         final var nodata = new DataGenerator(false, false);       // Big endian
         final var nans   = new DataGenerator(true,  false);
         nodata.generate();
-        nans.reformat(nodata, true);
-        new DataGenerator(false, true).reformat(nodata, false);  // Little endian
-        new DataGenerator(true,  true).reformat(nodata, true);   // Little endian and NaN
+        nans.reformat(nodata);
+        new DataGenerator(false, true).reformat(nodata);    // Little endian
+        new DataGenerator(true,  true).reformat(nodata);    // Little endian and NaN
 
         Files.deleteIfExists(nans.coordinatesFile);
         Files.deleteIfExists(nans.expectedResultsFile);

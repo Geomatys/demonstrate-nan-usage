@@ -7,74 +7,19 @@ package com.geomatys.nan;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.DoubleBuffer;
 import java.nio.FloatBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.DoubleSummaryStatistics;
 
 
 /**
- * Base class shared by all test cases.
+ * Base class shared by the two cases.
  *
  * @author Martin Desruisseaux (Geomatys)
  */
-class TestCase {
-    /**
-     * The raster size, in pixels.
-     */
-    static final int WIDTH = 800, HEIGHT = 600;
-
-    /**
-     * Number of points where to interpolate.
-     */
-    static final int NUM_INTERPOLATION_POINTS = 20000;
-
-    /**
-     * Number of iterations for which we verify the conformance against expected results.
-     * We do not verify all iterations because the actual results diverge strongly from
-     * the expected results after about 8 iterations, because of the intentionally chaotic
-     * nature of the calculation.
-     */
-    static final int NUM_VERIFIED_ITERATIONS = 12;
-
-    /**
-     * Total number of iterations over the points to interpolate.
-     * All iterations after {@link #NUM_VERIFIED_ITERATIONS} are for performance measurements only.
-     */
-    static final int NUM_ITERATIONS = 15;
-
-    /**
-     * Path to a RAW file containing raster data as {@code float} values in an endianness specified by {@link #byteOrder}.
-     * The raster size is {@value #WIDTH} × {@value #HEIGHT} pixels and the values are random {@code float} values
-     * between -100 and +100. The file contains random missing values identified by "no data" sentinel values or by
-     * NaN values, depending on which test is executed.
-     */
-    final Path rasterFile;
-
-    /**
-     * Whether the values in the raster file are in big-endian or little-endian byte order.
-     */
-    final ByteOrder byteOrder;
-
-    /**
-     * Path to a RAW file containing pixel coordinates as {@code double} values in big-endian byte order.
-     * For simplicity, coordinates are from 0 inclusive to the width or height minus one, exclusive.
-     * This is for avoiding the need to check for bounds before bilinear interpolations.
-     * Some coordinates are declared missing by "no data" sentinel values or by NaN,
-     * depending on which test is executed.
-     */
-    final Path coordinatesFile;
-
-    /**
-     * Path to a RAW file containing expected results as {@code double} values in big-endian byte order.
-     * This file may be large, so it is not loaded fully in memory. Missing results are represented by
-     * sentinel values only. NaNs are not used for avoiding any suspicion about test reliability.
-     */
-    final Path expectedResultsFile;
-
+public abstract class TestCase extends Configuration {
     /**
      * Statistics about the difference between computed values and expected values.
      * The array length is {@link #NUM_VERIFIED_ITERATIONS}, as there is no reasons
@@ -97,14 +42,18 @@ class TestCase {
      * @param littleEndian {@code true} for little-endian byte order, or {@code false} for big-endian.
      */
     TestCase(final boolean useNaN, final boolean littleEndian) {
-        final var directory = Path.of("data").resolve(useNaN ? "nan" : "nodata");
-        byteOrder           = littleEndian ? ByteOrder.LITTLE_ENDIAN : ByteOrder.BIG_ENDIAN;
-        rasterFile          = directory.resolve(littleEndian ? "little-endian.raw" : "big-endian.raw");
-        coordinatesFile     = directory.resolve("coordinates.raw");
-        expectedResultsFile = directory.resolve("expected-results.raw");
-        errorStatistics     = new DoubleSummaryStatistics[NUM_VERIFIED_ITERATIONS];
-        nodataMismatches    = new int[NUM_VERIFIED_ITERATIONS];
+        super(useNaN, littleEndian);
+        errorStatistics  = new DoubleSummaryStatistics[NUM_VERIFIED_ITERATIONS];
+        nodataMismatches = new int[NUM_VERIFIED_ITERATIONS];
     }
+
+    /**
+     * Reads the raster, performs interpolations and compares against the expected values.
+     * Differences are collected in statistics that can be printed with {@link #printStatistics()}.
+     *
+     * @throws IOException if an error occurred while reading a file.
+     */
+    public abstract void computeAndCompare() throws IOException;
 
     /**
      * Loads all floating-point values of the raster. This method involves a copy from the byte buffer
@@ -155,25 +104,84 @@ class TestCase {
     }
 
     /**
-     * Prints the statistics collected by this tests.
+     * Returns whether the test is considered a success. The test is considered successful
+     * if the first iterations have no errors. A drift is tolerated in the last iterations
+     * because this test intentionally uses a chaotic algorithm in order to test the effect
+     * of optimizations enabled by compiler options in the C/C++ variant of this test.
+     */
+    private boolean success() {
+        for (int i=0; i<NUM_VERIFIED_ITERATIONS; i++) {
+            if (nodataMismatches[i] != 0) {
+                if (i < 8) {
+                    return false;   // Mistmatch found after too few iterations.
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Returns whether the results of another test are equal to the results of this test.
+     */
+    private boolean resultEquals(final TestCase other) {
+        for (int i=0; i<NUM_VERIFIED_ITERATIONS; i++) {
+            if (errorStatistics[i].getMax() != other.errorStatistics[i].getMax()
+                    || nodataMismatches[i] != other.nodataMismatches[i])
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Prints the statistics collected by this test.
      */
     @SuppressWarnings("UseOfSystemOutOrSystemErr")
-    final void printStatistics() {
+    public void printStatistics() {
+        System.out.println("Errors in the use of raster data with " + (useNaN ? "NaN" : "\"No data\" sentinel")
+                + " values in " + byteOrder.toString().replace("_", " ").toLowerCase() + " byte order:");
         System.out.println("   Count     Minimum     Average     Maximum   Number of \"missing value\" mismatches");
         for (int i=0; i<NUM_VERIFIED_ITERATIONS; i++) {
             DoubleSummaryStatistics stats = errorStatistics[i];
             System.out.printf("%8d %11.4f %11.4f %11.4f %6d%n",
                     stats.getCount(), stats.getMin(), stats.getAverage(), stats.getMax(), nodataMismatches[i]);
         }
-        for (int i=0; i<NUM_VERIFIED_ITERATIONS; i++) {
-            if (nodataMismatches[i] != 0) {
-                if (i < 8) {
-                    System.out.println("TEST FAILURE.");
-                    return;
-                }
-                break;
+    }
+
+    /**
+     * Invoked on the command-line for running the test with "no data" and NaN values.
+     * The date are searched in the {@code data} sub-directory in the current directory.
+     * This directory must exist but may be empty. Test files will be created if missing.
+     *
+     * @param  args ignored.
+     * @throws IOException if an error occurred while reading or writing a file.
+     */
+    public static void main(String[] args) throws IOException {
+        final TestCase reference = new TestNodata(false);
+        if (Files.notExists(reference.rasterFile)) {
+            System.out.println("Generating test data. The data are saved for reuse in next test executions.");
+            DataGenerator.main(args);
+        }
+        final TestCase[] tests = {
+            new TestNodata(true),       // "No data" sentinel value in little-endian byte order.
+            new TestNaN(false),         // NaN in big-endian byte order.
+            new TestNaN(true)           // NaN in little-endian byte order.
+        };
+        boolean success = reference.success();
+        reference.computeAndCompare();
+        for (TestCase test : tests) {
+            test.computeAndCompare();
+            if (!reference.resultEquals(test)) {
+                test.printStatistics();
+                success = false;
             }
         }
-        System.out.println("Success (mismatches in the last iterations are normal).");
+        if (success) {
+            tests[1].printStatistics();     // NaN in big-endian byte order.
+            System.out.println("Success (mismatches in the last iterations are normal).");
+        } else {
+            System.out.println("TEST FAILURE.");
+        }
     }
 }

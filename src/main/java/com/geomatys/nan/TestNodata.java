@@ -13,7 +13,7 @@ import java.util.DoubleSummaryStatistics;
 
 /**
  * Same calculation as {@code TestNaN} but using sentinel values.
- * Used only for comparison purposes.
+ * Used only for comparison purposes (reference implementation).
  *
  * @author Martin Desruisseaux (Geomatys)
  */
@@ -32,10 +32,10 @@ public class TestNodata extends TestCase {
      *   <li>Missing because of a cloud.</li>
      * </ol>
      */
-    static final float CLOUD   = 9995,
-                       LAND    = 9996,
-                       NO_PASS = 9997,
-                       UNKNOWN = 9999;
+    public static final float CLOUD   = 9995,
+                              LAND    = 9996,
+                              NO_PASS = 9997,
+                              UNKNOWN = 9999;
 
     /**
      * The threshold used for deciding if a value should be considered as a missing value.
@@ -53,18 +53,19 @@ public class TestNodata extends TestCase {
      *
      * @param littleEndian {@code true} for little-endian byte order, or {@code false} for big-endian.
      */
-    private TestNodata(final boolean littleEndian) {
+    public TestNodata(final boolean littleEndian) {
         super(false, littleEndian);
     }
 
     /**
-     * Reads the raster, performs interpolations and compare against the expected values.
+     * Reads the raster, performs interpolations and compares against the expected values.
      * Differences are collected in statistics that can be printed with {@link #printStatistics()}.
      * This method is the interesting part of the tests, where both approaches (NaN versus "no data") differ.
      *
      * @throws IOException if an error occurred while reading a file.
      */
-    private void computeAndCompare() throws IOException {
+    @Override
+    public void computeAndCompare() throws IOException {
         final float[]  raster = loadRaster();
         final double[] coordinates = loadCoordinates();
         final ByteBuffer expectedResults = ByteBuffer.allocate(NUM_INTERPOLATION_POINTS * Double.BYTES);
@@ -137,25 +138,5 @@ public class TestNodata extends TestCase {
                 }
             }
         }
-    }
-
-    /**
-     * Invoked on the command-line for running the test with NaN values.
-     * This class looks for the {@code data} sub-directory in the current directory.
-     *
-     * @param  args ignored.
-     * @throws IOException if an error occurred while reading a file.
-     */
-    public static void main(String[] args) throws IOException {
-        System.out.println("\"No data\" sentinal values in big endian");
-        var test = new TestNodata(false);
-        test.computeAndCompare();
-        test.printStatistics();
-
-        System.out.println();
-        System.out.println("\"No data\" sentinal values in little endian");
-        test = new TestNodata(true);
-        test.computeAndCompare();
-        test.printStatistics();
     }
 }
