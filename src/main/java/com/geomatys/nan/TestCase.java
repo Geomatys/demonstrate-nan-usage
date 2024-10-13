@@ -37,17 +37,6 @@ public abstract class TestCase extends Configuration {
     final int[] nodataMismatches;
 
     /**
-     * During test execution, this is the start time of non-verified iterations.
-     * Used only for performance measurements.
-     */
-    private long startTime;
-
-    /**
-     * Elapsed time in milliseconds. For performance measurements only.
-     */
-    private final DoubleSummaryStatistics elapsedTime;
-
-    /**
      * Creates a new test case.
      *
      * @param useNaN       {@code true} if using NaN, or {@code false} if using "no data".
@@ -57,7 +46,6 @@ public abstract class TestCase extends Configuration {
         super(useNaN, littleEndian);
         errorStatistics  = new DoubleSummaryStatistics[NUM_VERIFIED_ITERATIONS];
         nodataMismatches = new int[NUM_VERIFIED_ITERATIONS];
-        elapsedTime      = new DoubleSummaryStatistics();
     }
 
     /**
@@ -100,17 +88,11 @@ public abstract class TestCase extends Configuration {
      * @param  it               the iteration number.
      * @param  input            input from which to read expected values.
      * @param  expectedResults  buffer where to store expected valued.
-     * @return statistics where to add errors compared to expected values, or {@code null} if none.
+     * @return statistics where to add errors compared to expected values.
      */
     final DoubleSummaryStatistics prepareNextVerification(final int it,
             final ReadableByteChannel input, final ByteBuffer expectedResults) throws IOException
     {
-        if (it >= NUM_VERIFIED_ITERATIONS) {
-            if (it == NUM_VERIFIED_ITERATIONS) {
-                startTime = System.nanoTime();
-            }
-            return null;
-        }
         expectedResults.clear();
         do if (input.read(expectedResults) < 0) {
             throw new EOFException();
@@ -129,7 +111,6 @@ public abstract class TestCase extends Configuration {
     private boolean run() throws IOException {
         Arrays.fill(nodataMismatches, 0);
         computeAndCompare();
-        elapsedTime.accept((System.nanoTime() - startTime) / 1E+6);
         for (int i=0; i<NUM_VERIFIED_ITERATIONS; i++) {
             if (nodataMismatches[i] != 0) {
                 if (i < 8) {
@@ -191,10 +172,8 @@ public abstract class TestCase extends Configuration {
             new TestNaN(true)           // NaN in little-endian byte order.
         };
         boolean success = true;
-        final var times = new DoubleSummaryStatistics[tests.length];
-        Arrays.setAll(times, (i) -> new DoubleSummaryStatistics());
-        System.out.println("Running 20 iterations of the tests.");
-        for (int i=0; i<20; i++) {
+        System.out.println("Running 10 iterations of the tests.");
+        for (int i=0; i<10; i++) {
             for (TestCase test : tests) {
                 success &= test.run();
                 if (!reference.resultEquals(test)) {
@@ -203,20 +182,6 @@ public abstract class TestCase extends Configuration {
                 }
             }
         }
-        System.out.println();
-        System.out.println("Execution times:");
-        for (TestCase test : tests) {
-            System.out.printf("%10s: min=%5.3f avg=%5.3f  max=%5.3f milliseconds%n",
-                    test.useNaN ? "NaN" : "No data",
-                    test.elapsedTime.getMin(),
-                    test.elapsedTime.getAverage(),
-                    test.elapsedTime.getMax());
-        }
-        System.out.println();
-        System.out.println("Note: differences are not necessarily due to \"no data\" versus NaN,");
-        System.out.println("because the two tests differ also on whether \"no data\" checks are");
-        System.out.println("performed before or after the interpolations.");
-        System.out.println();
         if (success) {
             tests[1].printStatistics();     // NaN in big-endian byte order.
             System.out.println("Success (mismatches in the last iterations are normal).");

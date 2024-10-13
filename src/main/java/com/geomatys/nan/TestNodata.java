@@ -70,7 +70,7 @@ public class TestNodata extends TestCase {
         final double[] coordinates = loadCoordinates();
         final ByteBuffer expectedResults = ByteBuffer.allocate(NUM_INTERPOLATION_POINTS * Double.BYTES);
         try (ReadableByteChannel input = Files.newByteChannel(expectedResultsFile)) {
-            for (int it=0; it<NUM_ITERATIONS; it++) {
+            for (int it=0; it<NUM_VERIFIED_ITERATIONS; it++) {
                 final DoubleSummaryStatistics stats = prepareNextVerification(it, input, expectedResults);
                 for (int i=0; i<NUM_INTERPOLATION_POINTS; i++) {
                     /*
@@ -109,10 +109,8 @@ public class TestNodata extends TestCase {
                             Math.max(v00, v01),
                             Math.max(v10, v11));
                     if (missingValueReason >= MISSING_VALUE_THRESHOLD) {
-                        if (stats != null) {
-                            if (missingValueReason != expectedResults.getDouble()) {
-                                nodataMismatches[it]++;
-                            }
+                        if (missingValueReason != expectedResults.getDouble()) {
+                            nodataMismatches[it]++;
                         }
                         result = 1;      // For moving to another position during the next iteration.
                     } else {
@@ -124,13 +122,11 @@ public class TestNodata extends TestCase {
                         double v0 = Math.fma(v01 - (double) v00, xf, v00);
                         double v1 = Math.fma(v11 - (double) v10, xf, v10);
                         result = Math.fma(v1 - v0, yf, v0);
-                        if (stats != null) {
-                            final double expected = expectedResults.getDouble();
-                            if (expected >= MISSING_VALUE_THRESHOLD) {
-                                nodataMismatches[it]++;
-                            } else {
-                                stats.accept(Math.abs(result - expected));
-                            }
+                        final double expected = expectedResults.getDouble();
+                        if (expected >= MISSING_VALUE_THRESHOLD) {
+                            nodataMismatches[it]++;
+                        } else {
+                            stats.accept(Math.abs(result - expected));
                         }
                     }
                     coordinates[ix] = Math.abs(x + result) % (WIDTH  - 1);

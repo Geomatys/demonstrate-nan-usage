@@ -64,7 +64,7 @@ public class TestNaN extends TestCase {
         final double[] coordinates = loadCoordinates();
         final ByteBuffer expectedResults = ByteBuffer.allocate(NUM_INTERPOLATION_POINTS * Double.BYTES);
         try (ReadableByteChannel input = Files.newByteChannel(expectedResultsFile)) {
-            for (int it=0; it<NUM_ITERATIONS; it++) {
+            for (int it=0; it<NUM_VERIFIED_ITERATIONS; it++) {
                 final DoubleSummaryStatistics stats = prepareNextVerification(it, input, expectedResults);
                 for (int i=0; i<NUM_INTERPOLATION_POINTS; i++) {
                     /*
@@ -110,23 +110,21 @@ public class TestNaN extends TestCase {
                      * If fact #1 was not true, we could still apply the same trick with only the addition of a bitmask.
                      */
                     if (Double.isNaN(result)) {
-                        if (stats != null) {
-                            final int missingValueReason = Math.max(
-                                    Math.max(Float.floatToRawIntBits(v00), Float.floatToRawIntBits(v01)),
-                                    Math.max(Float.floatToRawIntBits(v10), Float.floatToRawIntBits(v11)));
-                            /*
-                             * Convert the NaN pattern to the "no data" sentinel value used by `DataGenerator`.
-                             * This step is not needed in an application using NaN. This test is doing that
-                             * conversion only because we choose to store missing values as "no data" in the
-                             * "expected-results.raw" file.
-                             */
-                            final double nodata = (missingValueReason - CLOUD) + TestNodata.CLOUD;
-                            if (nodata != expectedResults.getDouble()) {
-                                nodataMismatches[it]++;
-                            }
+                        final int missingValueReason = Math.max(
+                                Math.max(Float.floatToRawIntBits(v00), Float.floatToRawIntBits(v01)),
+                                Math.max(Float.floatToRawIntBits(v10), Float.floatToRawIntBits(v11)));
+                        /*
+                         * Convert the NaN pattern to the "no data" sentinel value used by `DataGenerator`.
+                         * This step is not needed in an application using NaN. This test is doing that
+                         * conversion only because we choose to store missing values as "no data" in the
+                         * "expected-results.raw" file.
+                         */
+                        final double nodata = (missingValueReason - CLOUD) + TestNodata.CLOUD;
+                        if (nodata != expectedResults.getDouble()) {
+                            nodataMismatches[it]++;
                         }
                         result = 1;      // For moving to another position during the next iteration.
-                    } else if (stats != null) {
+                    } else {
                         final double expected = expectedResults.getDouble();
                         if (expected >= TestNodata.MISSING_VALUE_THRESHOLD) {
                             nodataMismatches[it]++;

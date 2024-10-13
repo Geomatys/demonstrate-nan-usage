@@ -33,12 +33,6 @@ class Configuration {
     static final int NUM_VERIFIED_ITERATIONS = 10;
 
     /**
-     * Total number of iterations over the points to interpolate without performing any verification.
-     * All iterations after {@link #NUM_VERIFIED_ITERATIONS} are for performance measurements only.
-     */
-    static final int NUM_ITERATIONS = 100;
-
-    /**
      * Whether this test case uses NaN instead of "no data" sentinel values.
      */
     final boolean useNaN;
