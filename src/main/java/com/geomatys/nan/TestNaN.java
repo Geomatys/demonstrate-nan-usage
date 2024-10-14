@@ -84,7 +84,6 @@ public class TestNaN extends TestCase {
                     final float v01 = raster[offset + 1];
                     final float v10 = raster[offset += WIDTH];
                     final float v11 = raster[offset + 1];
-                    double result;    // To be computed below.
                     /*
                      * Apply bilinear interpolation. Contrarily to the `TestNodata` case, we compute
                      * this interpolation unconditionally without checking if the data are valid.
@@ -96,7 +95,7 @@ public class TestNaN extends TestCase {
                     double yf = y - yb;
                     double v0 = Math.fma(v01 - (double) v00, xf, v00);
                     double v1 = Math.fma(v11 - (double) v10, xf, v10);
-                    result = Math.fma(v1 - v0, yf, v0);
+                    double result = Math.fma(v1 - v0, yf, v0);
                     /*
                      * Check if any raster value is missing. We could perform this check before calculation as in
                      * `TestNodata` class, but we don't have to. This demo arbitrarily checks after calculation.

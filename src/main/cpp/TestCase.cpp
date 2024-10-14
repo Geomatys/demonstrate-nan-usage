@@ -28,6 +28,18 @@
  */
 #define NUM_VERIFIED_ITERATIONS 10
 
+/*
+ * The threshold used for deciding if a value should be considered as a missing value
+ * when using the "no data" sentinel values approach instead of IEEE 754 NaN values.
+ * Any value greater than this threshold will be considered a missing value.
+ *
+ * Note that this strategy works only if all missing values are greater than all valid values.
+ * Conversely, a strategy where all missing values are smaller than valid values would also work.
+ * However, if the missing values can be anything (for example some of them smaller and some of
+ * them greater than valid values), then the code would need to be more complex and slower.
+ */
+#define MISSING_VALUE_THRESHOLD 10000
+
 
 /*
  * Base class shared by the two test cases.
@@ -87,12 +99,12 @@ class TestCase {
         float*  loadRaster();
         double* loadCoordinates();
         double* loadExpectedResults();
-        bool    success();
         bool    resultEquals(TestCase*);
-        void    printStatistics();
 
     public:
         virtual void computeAndCompare() = 0;
+        bool    success();
+        void    printStatistics();
 };
 
 
@@ -258,10 +270,154 @@ void TestCase::printStatistics() {
 
 
 /*
+ * Demonstrates that NaN values can be read and processed without any lost of information.
+ * The calculation is a bilinear interpolation.
+ */
+class TestNaN : public TestCase {
+    /*
+     * Value of the first positive quiet NaN.
+     */
+    const int32_t FIRST_QUIET_NAN = 0x7FC00000;
+
+    /*
+     * NaN bit pattern for a missing data. A value may be missing for different reasons, which are identified
+     * by different NaN values. This test uses the following values, in precedence order. For example,
+     * if a calculation involves two pixels missing for `CLOUD` and `LAND` reasons respectively,
+     * then the result will be considered missing for the `LAND` reason.
+     *
+     *   - Missing interpolation result because of missing coordinate values.
+     *   - Missing because the remote sensor didn't pass over that area.
+     *   - Missing because the pixel is on a land (assuming that the data are for some oceanographic phenomenon).
+     *   - Missing because of a cloud.
+     *   - Missing for an unknown reason.
+     */
+    const int32_t UNKNOWN = FIRST_QUIET_NAN,      // This is the default NaN value in Java.
+                  CLOUD   = FIRST_QUIET_NAN + 1,
+                  LAND    = FIRST_QUIET_NAN + 2,
+                  NO_PASS = FIRST_QUIET_NAN + 3;
+
+    public:
+        TestNaN(std::endian testByteOrder);
+        void computeAndCompare();
+};
+
+/*
+ * Creates a new test which will use NaN values for identifying the missing values.
+ */
+TestNaN::TestNaN(std::endian testByteOrder) : TestCase(true, testByteOrder) {
+}
+
+/*
+ * Reads the raster, performs interpolations and compares against the expected values.
+ * Differences are collected in statistics that can be printed with `printStatistics()`.
+ * This method is the interesting part of the tests, where both approaches (NaN versus "no data") differ.
+ */
+void TestNaN::computeAndCompare() {
+    float* raster = loadRaster();
+    if (raster) {
+        double* coordinates = loadCoordinates();
+        if (coordinates) {
+            double* expectedResults = loadExpectedResults();
+            if (expectedResults) {
+                double* expectedResultCursor = expectedResults;
+                for (int it=0; it<NUM_VERIFIED_ITERATIONS; it++) {
+                    double stats = errorStatistics[it];
+                    for (int i=0; i<NUM_INTERPOLATION_POINTS; i++) {
+                        /*
+                         * Get all sample values that we need for the bilinear interpolation.
+                         * Variables starting with "v" are converted from `float` to `double`.
+                         */
+                        int ix = i << 1;
+                        int iy = ix | 1;
+                        double x  = coordinates[ix];
+                        double y  = coordinates[iy];
+                        double xb = std::floor(x);
+                        double yb = std::floor(y);
+                        /*
+                         * The following bound check is implicit in Java.
+                         * We make it explicit in C/C++ for avoiding a core dump.
+                         */
+                        int offset = WIDTH * ((int) yb) + ((int) xb);
+                        if (offset < 0 || offset >= (HEIGHT - 1) * WIDTH + (WIDTH - 1)) {
+                            printf("Coordinates out of bounds: (%g, %g) for point %d.\n", xb, yb, i);
+                            exit(1);
+                        }
+                        float v00 = raster[offset];
+                        float v01 = raster[offset + 1];
+                        float v10 = raster[offset += WIDTH];
+                        float v11 = raster[offset + 1];
+                        /*
+                         * Apply bilinear interpolation. Contrarily to the `TestNodata` case, we compute
+                         * this interpolation unconditionally without checking if the data are valid.
+                         * This is an arbitrary choice, we could have made the two codes more similar.
+                         * We do that for illustrating this flexibility, and for showing that we can
+                         * rely on the result being some kind of NaN on all platforms and languages.
+                         */
+                        double xf = x - xb;
+                        double yf = y - yb;
+                        double v0 = std::fma(v01 - (double) v00, xf, v00);
+                        double v1 = std::fma(v11 - (double) v10, xf, v10);
+                        double result = std::fma(v1 - v0, yf, v0);
+                        /*
+                         * Check if any raster value is missing. We could perform this check before calculation as in
+                         * `TestNodata` class, but we don't have to. This demo arbitrarily checks after calculation.
+                         * As an optimization, we exploit the facts that in this test:
+                         *
+                         *   1) All NaN values in this test are "positive" (sign bit set to 0).
+                         *   2) NaN payloads are sorted with higher values for the reasons having precedence.
+                         *
+                         * The combination of those two facts allows us to simply check for the maximal value,
+                         * using signed integer comparisons, no matter if we have a mix of "no data" and real values.
+                         * If fact #1 was not true, we could still apply the same trick with only the addition of a bitmask.
+                         */
+                        if (std::isnan(result)) {
+                            int topRow = offset - WIDTH;
+                            int32_t* potentialNaNs = reinterpret_cast<int32_t*>(raster);
+                            int32_t missingValueReason = std::max(
+                                    std::max(potentialNaNs[topRow], potentialNaNs[topRow + 1]),
+                                    std::max(potentialNaNs[offset], potentialNaNs[offset + 1])
+                            );
+                            /*
+                             * Convert the NaN pattern to the "no data" sentinel value used by `DataGenerator`.
+                             * This step is not needed in an application using NaN. This test is doing that
+                             * conversion only because we choose to store missing values as "no data" in the
+                             * "expected-results.raw" file.
+                             */
+                            double nodata = (missingValueReason - FIRST_QUIET_NAN) + MISSING_VALUE_THRESHOLD;
+                            if (nodata != *expectedResultCursor) {
+                                nodataMismatches[it]++;
+                            }
+                            result = 1;      // For moving to another position during the next iteration.
+                        } else {
+                            double expected = *expectedResultCursor;
+                            if (expected >= MISSING_VALUE_THRESHOLD) {
+                                nodataMismatches[it]++;
+                            } else {
+                                stats = std::max(stats, std::abs(result - expected));
+                            }
+                        }
+                        coordinates[ix] = std::fmod(std::abs(x + result), WIDTH  - 1);
+                        coordinates[iy] = std::fmod(std::abs(y + result), HEIGHT - 1);
+                        expectedResultCursor++;
+                    }
+                    errorStatistics[it] = stats;
+                }
+                free(expectedResults);
+            }
+            free(coordinates);
+        }
+        free(raster);
+    }
+}
+
+
+
+
+/*
  * Same calculation as `TestNaN` but using sentinel values.
  * Used only for comparison purposes (reference implementation).
  */
-class TestNodata : TestCase {
+class TestNodata : public TestCase {
     /*
      * Sentinel value for a missing data. A value may be missing for different reasons, which are identified
      * by different sentinel values. This test uses the following values, in precedence order. For example,
@@ -274,21 +430,10 @@ class TestNodata : TestCase {
      *   - Missing because of a cloud.
      *   - Missing for an unknown reason.
      */
-    const float UNKNOWN = 10000,
+    const float UNKNOWN = 10000,    // Shall be equal to MISSING_VALUE_THRESHOLD for this test.
                 CLOUD   = 10001,
                 LAND    = 10002,
                 NO_PASS = 10003;
-
-    /*
-     * The threshold used for deciding if a value should be considered as a missing value.
-     * Any value greater than this threshold will be considered a missing value.
-     *
-     * Note that this strategy works only if all missing values are greater than all valid values.
-     * Conversely, a strategy where all missing values are smaller than valid values would also work.
-     * However, if the missing values can be anything (for example some of them smaller and some of
-     * them greater than valid values), then the code would need to be more complex and slower.
-     */
-    const float MISSING_VALUE_THRESHOLD = UNKNOWN;
 
     public:
         TestNodata(std::endian testByteOrder);
@@ -403,13 +548,17 @@ void TestNodata::computeAndCompare() {
  */
 void TestNodata::testAndCompare() {
     TestNodata nodataLittleEndian(std::endian::little);
+    TestNaN    nanBigEndian      (std::endian::big);
+    TestNaN    nanLittleEndian   (std::endian::little);
 
     bool success = true;
     for (int t=0; ; t++) {
-        TestNodata *test;
+        TestCase *test;
         switch (t) {
             case 0:  test = this; break;
             case 1:  test = &nodataLittleEndian; break;
+            case 2:  test = &nanBigEndian; break;
+            case 3:  test = &nanLittleEndian; break;
             default: test = NULL; break;
         }
         if (!test) break;
@@ -421,7 +570,7 @@ void TestNodata::testAndCompare() {
         }
     }
     if (success) {
-        nodataLittleEndian.printStatistics();
+        nanBigEndian.printStatistics();
         std::cout << "Success (mismatches in the last iterations are normal).\n";
     } else {
         std::cout << "TEST FAILURE.\n";
