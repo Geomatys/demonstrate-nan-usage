@@ -108,7 +108,7 @@ public abstract class TestCase extends Configuration {
      * uses chaotic algorithm in order to test the effect of optimizations enabled
      * by compiler options in the C/C++ variant of this test.
      */
-    private boolean run() throws IOException {
+    final boolean run() throws IOException {
         Arrays.fill(nodataMismatches, 0);
         computeAndCompare();
         for (int i=0; i<NUM_VERIFIED_ITERATIONS; i++) {
@@ -124,7 +124,7 @@ public abstract class TestCase extends Configuration {
     /**
      * Returns whether the results of another test are equal to the results of this test.
      */
-    private boolean resultEquals(final TestCase other) {
+    final boolean resultEquals(final TestCase other) {
         for (int i=0; i<NUM_VERIFIED_ITERATIONS; i++) {
             if (errorStatistics[i].getMax() != other.errorStatistics[i].getMax()
                     || nodataMismatches[i] != other.nodataMismatches[i])
@@ -147,46 +147,6 @@ public abstract class TestCase extends Configuration {
             DoubleSummaryStatistics stats = errorStatistics[i];
             System.out.printf("%8d %11.4f %11.4f %11.4f %6d%n",
                     stats.getCount(), stats.getMin(), stats.getAverage(), stats.getMax(), nodataMismatches[i]);
-        }
-    }
-
-    /**
-     * Invoked on the command-line for running the test with "no data" and NaN values.
-     * The date are searched in the {@code data} sub-directory in the current directory.
-     * This directory must exist but may be empty. Test files will be created if missing.
-     *
-     * @param  args ignored.
-     * @throws IOException if an error occurred while reading or writing a file.
-     */
-    @SuppressWarnings("UseOfSystemOutOrSystemErr")
-    public static void main(String[] args) throws IOException {
-        final TestCase reference = new TestNodata(false);
-        if (Files.notExists(reference.rasterFile)) {
-            System.out.println("Generating test data. The data are saved for reuse in next test executions.");
-            DataGenerator.main(args);
-        }
-        final TestCase[] tests = {
-            reference,
-            new TestNodata(true),       // "No data" sentinel value in little-endian byte order.
-            new TestNaN(false),         // NaN in big-endian byte order.
-            new TestNaN(true)           // NaN in little-endian byte order.
-        };
-        boolean success = true;
-        System.out.println("Running 10 iterations of the tests.");
-        for (int i=0; i<10; i++) {
-            for (TestCase test : tests) {
-                success &= test.run();
-                if (!reference.resultEquals(test)) {
-                    test.printStatistics();
-                    success = false;
-                }
-            }
-        }
-        if (success) {
-            tests[1].printStatistics();     // NaN in big-endian byte order.
-            System.out.println("Success (mismatches in the last iterations are normal).");
-        } else {
-            System.out.println("TEST FAILURE.");
         }
     }
 }
