@@ -59,7 +59,7 @@ public class Runner {
             }
         }
         if (success) {
-            tests[1].printStatistics();     // NaN in big-endian byte order.
+            tests[2].printStatistics();     // NaN in big-endian byte order.
             System.out.println("Success (mismatches in the last iterations are normal).");
         } else {
             System.out.println("TEST FAILURE.");

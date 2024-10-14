@@ -87,8 +87,8 @@ class TestCase {
         float*  loadRaster();
         double* loadCoordinates();
         double* loadExpectedResults();
-        bool    run();
-        bool    resultEquals(TestCase&);
+        bool    success();
+        bool    resultEquals(TestCase*);
         void    printStatistics();
 
     public:
@@ -206,13 +206,31 @@ double* TestCase::loadExpectedResults() {
     return (double*) bytes;
 }
 
+/*
+ * Returns whether the test was successful.
+ * The test is considered successful if the first iterations have no errors.
+ * A drift is tolerated in the last iterations because this test intentionally
+ * uses chaotic algorithm in order to test the effect of optimizations enabled
+ * by compiler options in the C/C++ variant of this test.
+ */
+bool TestCase::success() {
+    for (int i=0; i<NUM_VERIFIED_ITERATIONS; i++) {
+        if (nodataMismatches[i] != 0) {
+            if (i < 8) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 /**
  * Returns whether the results of another test are equal to the results of this test.
  */
-bool TestCase::resultEquals(TestCase& other) {
+bool TestCase::resultEquals(TestCase* other) {
     for (int i=0; i<NUM_VERIFIED_ITERATIONS; i++) {
-        if (errorStatistics [i] != other.errorStatistics [i] ||
-            nodataMismatches[i] != other.nodataMismatches[i])
+        if (errorStatistics [i] != other->errorStatistics [i] ||
+            nodataMismatches[i] != other->nodataMismatches[i])
         {
             return false;
         }
@@ -233,14 +251,6 @@ void TestCase::printStatistics() {
               << "    Maximum   Number of \"missing value\" mismatches\n";
     for (int i=0; i<NUM_VERIFIED_ITERATIONS; i++) {
         printf("%11.4f %6d\n", errorStatistics[i], nodataMismatches[i]);
-    }
-    for (int i=0; i<NUM_VERIFIED_ITERATIONS; i++) {
-        if (nodataMismatches[i] != 0) {
-            if (i < 8) {
-                std::cout << "TEST FAILURE";
-                break;
-            }
-        }
     }
 }
 
@@ -283,6 +293,7 @@ class TestNodata : TestCase {
     public:
         TestNodata(std::endian testByteOrder);
         void computeAndCompare();
+        void testAndCompare();
 };
 
 /*
@@ -382,12 +393,44 @@ void TestNodata::computeAndCompare() {
         }
         free(raster);
     }
-    printStatistics();
+}
+
+/*
+ * Run many variants of the tests (with "no data", with NaN).
+ * The instance on which this method is invoked is taken as the reference.
+ * It should be an instance using "no data" sentinel values, for avoiding
+ * any doubt.
+ */
+void TestNodata::testAndCompare() {
+    TestNodata nodataLittleEndian(std::endian::little);
+
+    bool success = true;
+    for (int t=0; ; t++) {
+        TestNodata *test;
+        switch (t) {
+            case 0:  test = this; break;
+            case 1:  test = &nodataLittleEndian; break;
+            default: test = NULL; break;
+        }
+        if (!test) break;
+        test->computeAndCompare();
+        success &= test->success();
+        if (!resultEquals(test)) {
+            test->printStatistics();
+            success = false;
+        }
+    }
+    if (success) {
+        nodataLittleEndian.printStatistics();
+        std::cout << "Success (mismatches in the last iterations are normal).\n";
+    } else {
+        std::cout << "TEST FAILURE.\n";
+    }
 }
 
 
 int main() {
     TestNodata test(std::endian::big);
-    test.computeAndCompare();
+    test.testAndCompare();
     return 0;
 }
