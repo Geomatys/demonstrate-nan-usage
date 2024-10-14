@@ -26,9 +26,9 @@ class Configuration {
 
     /**
      * Number of iterations for which we verify the conformance against expected results.
-     * We do not verify all iterations because the actual results diverge strongly from
-     * the expected results after about 8 iterations, because of the intentionally chaotic
-     * nature of the calculation.
+     * We verify a small number of iterations because the actual results diverge strongly
+     * from the expected results after about 8 iterations, because of the intentionally
+     * chaotic nature of the calculation.
      */
     static final int NUM_VERIFIED_ITERATIONS = 10;
 

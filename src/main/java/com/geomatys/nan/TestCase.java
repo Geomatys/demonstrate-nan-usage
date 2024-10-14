@@ -16,15 +16,14 @@ import java.util.DoubleSummaryStatistics;
 
 
 /**
- * Base class shared by the two cases.
+ * Base class shared by the two test cases.
  *
  * @author Martin Desruisseaux (Geomatys)
  */
 public abstract class TestCase extends Configuration {
     /**
-     * Statistics about the difference between computed values and expected values.
-     * The array length is {@link #NUM_VERIFIED_ITERATIONS}, as there is no reasons
-     * to continue collecting statistics after those iterations.
+     * Statistics about the differences between computed values and expected values.
+     * The array length is {@link #NUM_VERIFIED_ITERATIONS}.
      */
     private final DoubleSummaryStatistics[] errorStatistics;
 
@@ -37,7 +36,8 @@ public abstract class TestCase extends Configuration {
     final int[] nodataMismatches;
 
     /**
-     * Creates a new test case.
+     * Determines the paths to the files needed by the test.
+     * The files to load depend on whether the subclass is testing NaN or "no data" sentinel values.
      *
      * @param useNaN       {@code true} if using NaN, or {@code false} if using "no data".
      * @param littleEndian {@code true} for little-endian byte order, or {@code false} for big-endian.
@@ -102,7 +102,7 @@ public abstract class TestCase extends Configuration {
     }
 
     /**
-     * Runs the test, records the elapsed time and returns whether the test was successful.
+     * Runs the test and returns whether the test was successful.
      * The test is considered successful if the first iterations have no errors.
      * A drift is tolerated in the last iterations because this test intentionally
      * uses chaotic algorithm in order to test the effect of optimizations enabled
