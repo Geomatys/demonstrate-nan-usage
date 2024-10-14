@@ -25,17 +25,17 @@ public class TestNodata extends TestCase {
      * then the result will be considered missing for the {@code LAND} reason.
      *
      * <ol>
-     *   <li>Missing for an unknown reason.</li>
      *   <li>Missing interpolation result because of missing coordinate values.</li>
      *   <li>Missing because the remote sensor didn't pass over that area.</li>
      *   <li>Missing because the pixel is on a land (assuming that the data are for some oceanographic phenomenon).</li>
      *   <li>Missing because of a cloud.</li>
+     *   <li>Missing for an unknown reason.</li>
      * </ol>
      */
-    public static final float CLOUD   = 9995,
-                              LAND    = 9996,
-                              NO_PASS = 9997,
-                              UNKNOWN = 9999;
+    public static final float UNKNOWN = 10000,
+                              CLOUD   = 10001,
+                              LAND    = 10002,
+                              NO_PASS = 10003;
 
     /**
      * The threshold used for deciding if a value should be considered as a missing value.
@@ -46,7 +46,7 @@ public class TestNodata extends TestCase {
      * However, if the missing values can be anything (for example some of them smaller and some of
      * them greater than valid values), then the code would need to be more complex and slower.</p>
      */
-    static final float MISSING_VALUE_THRESHOLD = CLOUD;
+    static final float MISSING_VALUE_THRESHOLD = UNKNOWN;
 
     /**
      * Creates a new test which will use "no data" sentinel values for identifying the missing values.

@@ -21,7 +21,7 @@ public class TestNaN extends TestCase {
     /**
      * Value of the first positive quiet NaN.
      */
-    private static final int FIRST_QUIET_NAN = 0x7FC00000;
+    static final int FIRST_QUIET_NAN = 0x7FC00000;
 
     /**
      * NaN bit pattern for a missing data. A value may be missing for different reasons, which are identified
@@ -30,17 +30,17 @@ public class TestNaN extends TestCase {
      * then the result will be considered missing for the {@code LAND} reason.
      *
      * <ol>
-     *   <li>Missing for an unknown reason.</li>
      *   <li>Missing interpolation result because of missing coordinate values.</li>
      *   <li>Missing because the remote sensor didn't pass over that area.</li>
      *   <li>Missing because the pixel is on a land (assuming that the data are for some oceanographic phenomenon).</li>
      *   <li>Missing because of a cloud.</li>
+     *   <li>Missing for an unknown reason.</li>
      * </ol>
      */
-    public static final int CLOUD   = FIRST_QUIET_NAN + 1,
+    public static final int UNKNOWN = FIRST_QUIET_NAN,      // This is the default NaN value in Java.
+                            CLOUD   = FIRST_QUIET_NAN + 1,
                             LAND    = FIRST_QUIET_NAN + 2,
-                            NO_PASS = FIRST_QUIET_NAN + 3,
-                            UNKNOWN = FIRST_QUIET_NAN + 5;
+                            NO_PASS = FIRST_QUIET_NAN + 3;
 
     /**
      * Creates a new test which will use NaN for identifying the missing values.
@@ -119,7 +119,7 @@ public class TestNaN extends TestCase {
                          * conversion only because we choose to store missing values as "no data" in the
                          * "expected-results.raw" file.
                          */
-                        final double nodata = (missingValueReason - CLOUD) + TestNodata.CLOUD;
+                        final double nodata = (missingValueReason - FIRST_QUIET_NAN) + TestNodata.MISSING_VALUE_THRESHOLD;
                         if (nodata != expectedResults.getDouble()) {
                             nodataMismatches[it]++;
                         }

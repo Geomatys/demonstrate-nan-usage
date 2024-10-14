@@ -9,16 +9,16 @@ The `TestNodata` class uses the following sentinel values for missing data:
  * Sentinel value for a missing data. A value may be missing for different reasons,
  * which are identified by different sentinel values.
  */
-static final float CLOUD   = 9995,
-                   LAND    = 9996,
-                   NO_PASS = 9997,
-                   UNKNOWN = 9999;
+static final float UNKNOWN = 10000,
+                   CLOUD   = 10001,
+                   LAND    = 10002,
+                   NO_PASS = 10003;
 
 /**
  * The threshold used for deciding if a value should be considered as a missing value.
  * Any value greater than this threshold will be considered a missing value.
  */
-static final float MISSING_VALUE_THRESHOLD = CLOUD;
+static final float MISSING_VALUE_THRESHOLD = UNKNOWN;
 ```
 
 Note that the `MISSING_VALUE_THRESHOLD` value is arbitrary and data-dependent, as it must be a value not used by real values.
@@ -36,10 +36,10 @@ private static final int FIRST_QUIET_NAN = 0x7FC00000;
  * NaN bit pattern for a missing data. A value may be missing for different reasons,
  * which are identified by different NaN values.
  */
-static final int CLOUD   = FIRST_QUIET_NAN + 1,
+static final int UNKNOWN = FIRST_QUIET_NAN,      // This is the default NaN value in Java.
+                 CLOUD   = FIRST_QUIET_NAN + 1,
                  LAND    = FIRST_QUIET_NAN + 2,
-                 NO_PASS = FIRST_QUIET_NAN + 3,
-                 UNKNOWN = FIRST_QUIET_NAN + 5;
+                 NO_PASS = FIRST_QUIET_NAN + 3;
 ```
 
 
@@ -98,21 +98,25 @@ which gives room for 21 different reasons (or 22 if we use also the sign bit).
 The `TestNaN` code declaring NaN values can be replaced by the following:
 
 ```java
-static final int CLOUD   = FIRST_QUIET_NAN | 1,
+static final int UNKNOWN = FIRST_QUIET_NAN,     // No bit set. This is the default NaN value in Java.
+                 CLOUD   = FIRST_QUIET_NAN | 1,
                  LAND    = FIRST_QUIET_NAN | 2,
                  NO_PASS = FIRST_QUIET_NAN | 4,
-                 UNKNOWN = FIRST_QUIET_NAN | 8;
+                 OTHER   = FIRST_QUIET_NAN | 8;
 ```
 
 And the code computing the missing value reasons (previously using `max`) become as below:
 
 ```java
-if (isNaN(result)) {
-    int missingValueReasons = FIRST_QUIET_NAN;
+if (isNaN(result)) {  // Optional, this check is also done by `if (missingValueReasons != 0)`.
+    int missingValueReasons = 0;
     if (isNaN(v00)) missingValueReasons |= floatToRawIntBits(v00);
     if (isNaN(v01)) missingValueReasons |= floatToRawIntBits(v01);
     if (isNaN(v10)) missingValueReasons |= floatToRawIntBits(v10);
     if (isNaN(v11)) missingValueReasons |= floatToRawIntBits(v11);
+    if (missingValueReasons != 0) {
+        // At least one value is NaN.
+    }
 }
 ```
 

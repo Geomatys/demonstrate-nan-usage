@@ -30,17 +30,17 @@ When the bit pattern of a `float` is interpreted as an `int`, all values in the 
 convenient range and the one used in this demo.
 
 ### Demonstration
-For proving that point, this demo uses five distinct NaN values:
+For proving that point, this demo uses four distinct NaN values:
 
+  * `UNKNOWN` for any value missing for an unknown reason.
   * `CLOUD`   for a value missing because of a cloud.
   * `LAND`    for a value missing because the pixel is on a land (assuming that the data are for some oceanographic phenomenon).
   * `NO_PASS` for a value missing because the remote sensor didn't pass over that area.
-  * `UNKNOWN` for any value missing for an unknown reason.
 
 In order to demonstrate that NaN values can be analyzed, the bilinear interpolation arbitrarily applies the following rule:
 if exactly one value needed for the interpolation is missing, the interpolation result is missing for the same reason.
 If two or more needed values are missing, the interpolation result is missing for the reason having the highest priority
-in that order (highest priority first): `UNKNOWN`, `NO_PASS`, `LAND`, and `CLOUD`.
+in that order (highest priority first): `NO_PASS`, `LAND`, `CLOUD` and `UNKNOWN`.
 
 
 ## "Not the right semantic (we want `null`, `unknown`, …)"
@@ -136,7 +136,7 @@ The difference between the `TestNodata` and `TestNaN` is described in a [separat
 
 ## Note on an optimization strategy (optional)
 `TestNaN` and `TestNodata` both use the same optimization strategy for selecting a missing reason
-in `UNKNOWN`, `NO_PASS`, `LAND`, and `CLOUD` precedence order. This demo exploits the facts that:
+in `NO_PASS`, `LAND`, `CLOUD` and `UNKNOWN` precedence order. This demo exploits the facts that:
 
 1. All "no data" values used in this demo are greater than all valid values.
 2. Missing reasons having highest priority are assigned highest "No data" values.

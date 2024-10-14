@@ -182,7 +182,9 @@ public final class DataGenerator extends Configuration {
             while (floats.hasRemaining()) {
                 float value = floats.get();
                 if (value >= TestNodata.MISSING_VALUE_THRESHOLD) {
-                    value = Float.intBitsToFloat(Math.round(value - TestNodata.CLOUD) + TestNaN.CLOUD);
+                    // Following conversion is specific to this test and should not be done in production code.
+                    int bitPattern = Math.round(value - TestNodata.MISSING_VALUE_THRESHOLD) + TestNaN.FIRST_QUIET_NAN;
+                    value = Float.intBitsToFloat(bitPattern);
                     assert Float.isNaN(value) : value;
                     floats.put(floats.position() - 1, value);
                 }
