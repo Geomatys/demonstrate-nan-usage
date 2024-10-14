@@ -285,7 +285,6 @@ class TestNaN : public TestCase {
      * if a calculation involves two pixels missing for `CLOUD` and `LAND` reasons respectively,
      * then the result will be considered missing for the `LAND` reason.
      *
-     *   - Missing interpolation result because of missing coordinate values.
      *   - Missing because the remote sensor didn't pass over that area.
      *   - Missing because the pixel is on a land (assuming that the data are for some oceanographic phenomenon).
      *   - Missing because of a cloud.
@@ -424,7 +423,6 @@ class TestNodata : public TestCase {
      * if a calculation involves two pixels missing for `CLOUD` and `LAND` reasons respectively,
      * then the result will be considered missing for the `LAND` reason.
      *
-     *   - Missing interpolation result because of missing coordinate values.
      *   - Missing because the remote sensor didn't pass over that area.
      *   - Missing because the pixel is on a land (assuming that the data are for some oceanographic phenomenon).
      *   - Missing because of a cloud.

@@ -30,7 +30,6 @@ public class TestNaN extends TestCase {
      * then the result will be considered missing for the {@code LAND} reason.
      *
      * <ol>
-     *   <li>Missing interpolation result because of missing coordinate values.</li>
      *   <li>Missing because the remote sensor didn't pass over that area.</li>
      *   <li>Missing because the pixel is on a land (assuming that the data are for some oceanographic phenomenon).</li>
      *   <li>Missing because of a cloud.</li>
