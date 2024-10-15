@@ -153,7 +153,7 @@ By contrast, optimizations can be done more easily with NaN because condition eq
 
 # Running the tests
 The same test is available in the following languages:
-Java, C/C++.
+Java, C/C++ and Python.
 All commands listed below should be executed in a Unix shell with the project root directory
 (the directory containing this `README.md` file) as the current directory.
 The Java test should be run at least once before the tests in any other languages,
@@ -185,4 +185,13 @@ cmake --build .
 
 # Execution
 ./NaN-test
+```
+
+
+## Python
+Run the following command.
+The Java code must have been built once before that command can be executed.
+
+```bash
+python src/main/python/TestCase.py
 ```
