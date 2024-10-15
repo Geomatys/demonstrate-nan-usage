@@ -48,18 +48,22 @@ public class Runner {
             new TestNaN(true)           // NaN in little-endian byte order.
         };
         boolean success = true;
+        boolean hasShownStatistics = false;
         System.out.println("Running 10 iterations of the tests.");
         for (int i=0; i<10; i++) {
             for (TestCase test : tests) {
                 success &= test.run();
                 if (!reference.resultEquals(test)) {
                     test.printStatistics();
+                    hasShownStatistics = true;
                     success = false;
                 }
             }
         }
-        if (success) {
+        if (!hasShownStatistics) {
             tests[2].printStatistics();     // NaN in big-endian byte order.
+        }
+        if (success) {
             System.out.println("Success (mismatches in the last iterations are normal).");
         } else {
             System.out.println("TEST FAILURE.");

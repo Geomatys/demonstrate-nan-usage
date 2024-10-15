@@ -54,8 +54,6 @@ class Configuration {
      * Path to a RAW file containing pixel coordinates as {@code double} values in big-endian byte order.
      * For simplicity, coordinates are from 0 inclusive to the width or height minus one, exclusive.
      * This is for avoiding the need to check for bounds before bilinear interpolations.
-     * Some coordinates are declared missing by "no data" sentinel values or by NaN,
-     * depending on which test is executed.
      */
     final Path coordinatesFile;
 
