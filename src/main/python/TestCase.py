@@ -196,10 +196,16 @@ def compute_and_compare():
             # We do that for illustrating this flexibility, and for showing that we can
             # rely on the result being some kind of NaN on all platforms and languages.
             #
+            # NOTE ON FLOATING POINT PRECISION:
+            # The addition of 0.0 is a hack for forcing Python to convert 32 bit floating point numbers
+            # (single precision) to 64 bits floating point numbers (double precision) before to do the
+            # subtraction. Otherwise, (v01 - v00) and (v11 - v10) are computed with single precision,
+            # causing the results to diverge from expected results. This issue is unrelated to NaN.
+            #
             xf = x - xb
             yf = y - yb
-            v0 = (v01 - v00) * xf + v00
-            v1 = (v11 - v10) * xf + v10
+            v0 = (v01 - (v00 + 0.0)) * xf + v00     # See above for the +0.0 hack
+            v1 = (v11 - (v10 + 0.0)) * xf + v10
             result = (v1 - v0) * yf + v0
             #
             # Check if any raster value is missing. We could perform this check before calculation as in
