@@ -164,6 +164,7 @@ float* TestCase::loadRaster() {
         uint32_t* p = (uint32_t*) bytes;
         uint32_t* limit = p + WIDTH * HEIGHT;
         do {
+            // There is probably a more efficient way to swap bytes in C/C++, but I didn't find it.
             uint32_t v = *p;
             *p =  (v >> 24)
                | ((v <<  8) & 0x00FF0000)
@@ -171,7 +172,7 @@ float* TestCase::loadRaster() {
                |  (v << 24);
         } while (++p < limit);
     }
-    return (float*) bytes;
+    return reinterpret_cast<float*>(bytes);
 }
 
 /*
@@ -182,6 +183,7 @@ void toNativeByteOrder(uint64_t* p, int numValues) {
     if (p && std::endian::native == std::endian::little) {
         uint64_t* limit = p + numValues;
         do {
+            // There is probably a more efficient way to swap bytes in C/C++, but I didn't find it.
             uint64_t v = *p;
             *p =  (v >> 56)
                | ((v << 40) & 0x00FF000000000000)
@@ -202,7 +204,7 @@ void toNativeByteOrder(uint64_t* p, int numValues) {
 double* TestCase::loadCoordinates() {
     char* bytes = readAllBytes(coordinatesFile, 2*NUM_INTERPOLATION_POINTS * sizeof(double));
     toNativeByteOrder((uint64_t*) bytes, 2*NUM_INTERPOLATION_POINTS);
-    return (double*) bytes;
+    return reinterpret_cast<double*>(bytes);
 }
 
 /*
@@ -213,7 +215,7 @@ double* TestCase::loadCoordinates() {
 double* TestCase::loadExpectedResults() {
     char* bytes = readAllBytes(expectedResultsFile, NUM_INTERPOLATION_POINTS * NUM_VERIFIED_ITERATIONS * sizeof(double));
     toNativeByteOrder((uint64_t*) bytes, NUM_INTERPOLATION_POINTS * NUM_VERIFIED_ITERATIONS);
-    return (double*) bytes;
+    return reinterpret_cast<double*>(bytes);
 }
 
 /*
@@ -262,6 +264,18 @@ void TestCase::printStatistics() {
     for (int i=0; i<NUM_VERIFIED_ITERATIONS; i++) {
         printf("%11.4f %6d\n", errorStatistics[i], nodataMismatches[i]);
     }
+}
+
+/*
+ * Returns the bit pattern of the given floating point number.
+ * Equivalent to Java's `Float.floatToRawIntBits(float)`.
+ *
+ * Note: NaN values have a sign bit (we can have "negative" NaN), so we really need the signed type below.
+ * The choice of signed or unsigned type changes the way that the `max` function will behave when checking
+ * which NaN has precedence in this test.
+ */
+inline int32_t floatToRawIntBits(float value) {
+    return *(reinterpret_cast<int32_t*>(&value));
 }
 
 
@@ -368,11 +382,9 @@ void TestNaN::computeAndCompare() {
                          * If fact #1 was not true, we could still apply the same trick with only the addition of a bitmask.
                          */
                         if (std::isnan(result)) {
-                            int topRow = offset - WIDTH;
-                            int32_t* potentialNaNs = reinterpret_cast<int32_t*>(raster);
                             int32_t missingValueReason = std::max(
-                                    std::max(potentialNaNs[topRow], potentialNaNs[topRow + 1]),
-                                    std::max(potentialNaNs[offset], potentialNaNs[offset + 1]));
+                                    std::max(floatToRawIntBits(v00), floatToRawIntBits(v01)),
+                                    std::max(floatToRawIntBits(v10), floatToRawIntBits(v11)));
                             /*
                              * Convert the NaN pattern to the "no data" sentinel value used by `DataGenerator`.
                              * This step is not needed in an application using NaN. This test is doing that
@@ -573,7 +585,61 @@ void TestNodata::testAndCompare() {
 }
 
 
+/*
+ * Helper method for diagnostic before test in the main method.
+ */
+void printNaNSupport(const char* functionName, double result) {
+    printf("Test support in %-6s %f\n", functionName, result);
+}
+
+/*
+ * Helper method for testing `std::nanf(const char*)` in the main method.
+ */
+void testDistinctNaN(const char* tagp) {
+    float value = std::nanf(tagp);
+    printf("%-8s isNaN=%s, bits=%8x\n", tagp, std::isnan(value) ? "true" : "false", floatToRawIntBits(value));
+}
+
+/*
+ * Test the support of NaN in a few mathematical functions, then run the test.
+ */
 int main() {
+    float n = rand();
+    printNaNSupport("+:",     n + NAN);
+    printNaNSupport("-:",     n - NAN);
+    printNaNSupport("*:",     n * NAN);
+    printNaNSupport("/:",     n / NAN);
+    printNaNSupport("sin:",   std::sin  (NAN));
+    printNaNSupport("cos:",   std::cos  (NAN));
+    printNaNSupport("tan:",   std::tan  (NAN));
+    printNaNSupport("asin:",  std::asin (NAN));
+    printNaNSupport("acos:",  std::acos (NAN));
+    printNaNSupport("atan:",  std::atan (NAN));
+    printNaNSupport("atan2:", std::atan2(NAN, 1));
+    printNaNSupport("floor:", std::floor(NAN));
+    printNaNSupport("ceil:",  std::ceil (NAN));
+    printNaNSupport("trunc:", std::trunc(NAN));
+    printNaNSupport("pow:",   std::pow  (NAN, 2));
+    printNaNSupport("sqrt:",  std::sqrt (NAN));
+    printNaNSupport("hypot:", std::hypot(NAN, 3));
+    printf("Test support in %-6s %s\n", "isnan:", std::isnan(NAN) ? "ok" : "FAIL");
+    /*
+     * Bonus: the C++ 11 standard has methods for creating distincts quiet NaN values,
+     * and even for parsing them from character strings.
+     */
+    std::cout << '\n';
+    std::cout << "Test the std::nanf(char*) function from C++ 11 standard:\n";
+    testDistinctNaN("cloud");
+    testDistinctNaN("land");
+    testDistinctNaN("no_pass");
+    testDistinctNaN("1");
+    testDistinctNaN("2");
+    testDistinctNaN("35");
+    testDistinctNaN("400");
+    std::cout << '\n';
+    /*
+     * The test loading a RAW file.
+     */
     TestNodata test(std::endian::big);
     test.testAndCompare();
     return 0;
