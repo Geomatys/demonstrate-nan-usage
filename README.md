@@ -15,6 +15,8 @@ the classical approach based on "no data" sentinel values, used as a reference.
   * ["Payload propagation is implementation-dependent"](#payload-propagation-is-implementation-dependent)
 * [Analysis](#analysis)
   * [Code differences](#code-differences)
+  * [Note on C/C++](#note-on-cc)
+  * [Code on precision](#note-on-precision) (can easily be ignored)
   * [Note on an optimization strategy (optional)](#note-on-an-optimization-strategy-optional)
 * [Running the tests](#running-the-tests)
 
