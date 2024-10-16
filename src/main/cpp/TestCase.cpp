@@ -380,6 +380,17 @@ void TestNaN::computeAndCompare() {
                          * The combination of those two facts allows us to simply check for the maximal value,
                          * using signed integer comparisons, no matter if we have a mix of "no data" and real values.
                          * If fact #1 was not true, we could still apply the same trick with only the addition of a bitmask.
+                         *
+                         * ALTERNATIVE WITHOUT std::isnan(float)
+                         * ═════════════════════════════════════
+                         * For using this code in a context where `std::isnan` is not reliable (i.e., when the GCC
+                         * `-ffast-math` option is used), the `missingValueReason` calculation can be moved before
+                         * the `if` statement, and the `if` statement can be replaced by the following:
+                         *
+                         *     if (missingValueReason >= FIRST_QUIET_NAN) { ... }
+                         *
+                         * This trick uses the fact that "positive" quiet NaNs are greater than all other IEEE 754
+                         * values when compared as signed integers.
                          */
                         if (std::isnan(result)) {
                             int32_t missingValueReason = std::max(
@@ -622,7 +633,10 @@ int main() {
     printNaNSupport("pow:",   std::pow  (NAN, 2));
     printNaNSupport("sqrt:",  std::sqrt (NAN));
     printNaNSupport("hypot:", std::hypot(NAN, 3));
-    printf("Test support in %-6s %s\n", "isnan:", std::isnan(NAN) ? "ok" : "FAIL");
+    printf("Test support in %-6s %s\n", "isnan:", std::isnan(n + NAN) ? "ok" : "FAIL");
+    #ifdef __FAST_MATH__
+    std::cout << "Fast math option detected.\n";
+    #endif
     /*
      * Bonus: the C++ 11 standard has methods for creating distincts quiet NaN values,
      * and even for parsing them from character strings.
@@ -636,6 +650,8 @@ int main() {
     testDistinctNaN("2");
     testDistinctNaN("35");
     testDistinctNaN("400");
+    printf("%s bits=%8x\n", "strtof(\"NAN(cloud)\"):", floatToRawIntBits(std::strtof("NAN(cloud)", NULL)));
+    printf("%s bits=%8x\n", "strtof(\"NAN(2)\"):",     floatToRawIntBits(std::strtof("NAN(2)", NULL)));
     std::cout << '\n';
     /*
      * The test loading a RAW file.

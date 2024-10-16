@@ -30,6 +30,9 @@ Note that this issue is unrelated to NaN.
 
 
 ## With cast to double-precision and use of FMA
+Below is the output of the Java and C/C++ tests,
+which uses `Math.fma(…)` and `std::fma` respectively.
+
 ```
 Errors in the use of raster data with NaN values in big endian byte order:
    Count     Minimum     Average     Maximum   Number of "missing value" mismatches
@@ -46,6 +49,13 @@ Errors in the use of raster data with NaN values in big endian byte order:
 ```
 
 ## With cast to double-precision but without FMA
+Below is the output of the Python test.
+It is also the output of the Java and C/C++ tests when FMA is replaced by a
+multiplication followed by an addition. We observe a small lost of accuracy.
+Note that on the machine used for the test (Intel® Core™ i7-8750H) and the
+`gcc` compiler used (14.2.1 20240912 (Red Hat 14.2.1-3)), we get this output
+even with the `-ffast-math` option.
+
 ```
 Errors in the use of raster data with NaN values in big endian byte order:
    Count     Minimum     Average     Maximum   Number of "missing value" mismatches
@@ -62,6 +72,10 @@ Errors in the use of raster data with NaN values in big endian byte order:
 ```
 
 ## Without cast and without FMA
+Below is the output that we get if the `(v01 - v00)` and `(v11 - v10)`
+are computed without casting at least one `float` value to `double`
+before the subtraction. In Python, the cast is forced by `+ 0.0`.
+
 ```
 Errors in the use of raster data with NaN values in big endian byte order:
    Count     Minimum     Average     Maximum   Number of "missing value" mismatches
