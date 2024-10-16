@@ -133,6 +133,13 @@ as developers are protected against accidental sentinel value pollution.
 ## Code differences
 The difference between the `TestNodata` and `TestNaN` is described in a [separated page](differences.md).
 
+## Note on C/C++
+Note on the behavior ofNaN in C/C++, especially regarding the  `-ffast-math` compiler option,
+is in a [separated page](note-on-cpp.md).
+
+## Note on precision
+A minor note about floating point precision is a [separated page](note-on-precision.md) (can easily be ignored).
+
 
 ## Note on an optimization strategy (optional)
 `TestNaN` and `TestNodata` both use the same optimization strategy for selecting a missing reason
