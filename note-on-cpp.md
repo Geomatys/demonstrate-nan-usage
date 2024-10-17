@@ -45,7 +45,7 @@ which NaN has precedence in this test.
 
 ```cpp
 inline int32_t floatToRawIntBits(float value) {
-    return *(reinterpret_cast<int32_t*>(&value));
+    return std::bit_cast<int32_t>(value);
 }
 ```
 
