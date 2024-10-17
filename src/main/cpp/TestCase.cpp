@@ -577,22 +577,22 @@ double TestNodata::computeAndCompare() {
  * It should be an instance using "no data" sentinel values, for avoiding
  * any doubt. This method returns whether the test was successful.
  */
+#define NUM_TEST_VARIANTS 4
 bool TestNodata::testAndCompare(double* executionTimes, bool printStatistics) {
     TestNodata nodataLittleEndian(std::endian::little);
     TestNaN    nanBigEndian      (std::endian::big);
     TestNaN    nanLittleEndian   (std::endian::little);
 
     bool success = true;
-    for (int t=0; ; t++) {
+    for (int t=0; t<NUM_TEST_VARIANTS; t++) {
         TestCase *test;
         switch (t) {
             case 0:  test = this; break;
             case 1:  test = &nodataLittleEndian; break;
             case 2:  test = &nanBigEndian; break;
             case 3:  test = &nanLittleEndian; break;
-            default: test = NULL; break;
+            default: return false;      // Should never happen.
         }
-        if (!test) break;
         executionTimes[t] += test->computeAndCompare();
         success &= test->success();
         if (!resultEquals(test)) {
@@ -601,7 +601,7 @@ bool TestNodata::testAndCompare(double* executionTimes, bool printStatistics) {
         }
     }
     if (success && printStatistics) {
-        nanBigEndian.printStatistics();
+        nanLittleEndian.printStatistics();
     }
     return success;
 }
@@ -665,22 +665,40 @@ int main() {
     printf("%s bits=%8x\n", "strtof(\"NAN(2)\"):",     floatToRawIntBits(std::strtof("NAN(2)", NULL)));
     std::cout << '\n';
     /*
-     * The test loading a RAW file.
+     * The test loading a RAW file. The same tests are executed many times
+     * in order to perform time measurements.
      */
-    double executionTimes[4];
-    memset(executionTimes, 0, 4 * sizeof(double));
-    for (int it = 20; --it >= 0;) {
+    const int numIterations = 20;
+    double executionTimes[NUM_TEST_VARIANTS * numIterations];
+    memset(executionTimes, 0, NUM_TEST_VARIANTS * numIterations * sizeof(double));
+    for (int it = numIterations; --it >= 0;) {
         TestNodata test(std::endian::big);
-        if (!test.testAndCompare(executionTimes, it == 0)) {
+        if (!test.testAndCompare(executionTimes + it*NUM_TEST_VARIANTS, it == 0)) {
             std::cout << "TEST FAILURE.\n";
             return 1;
         }
     }
     std::cout << "Success (mismatches in the last iterations are normal).\n";
-    for (int i=0; i<4; i++) {
-        printf("Execution time width %-12s %7.3f milliseconds.\n",
-                (i < 2) ? "NaN values:" : "\"no data\":",
-                executionTimes[i] / 1E+6);
+    /*
+     * Compute average execution time together with standard deviations.
+     * The standard deviations are necessary for determining if the effect
+     * of a compiler option is only noise.
+     */
+    for (int t=0; t<NUM_TEST_VARIANTS; t++) {
+        double mean = 0;
+        for (int it=0; it<numIterations; it++) {
+            mean += executionTimes[it*NUM_TEST_VARIANTS + t];
+        }
+        mean /= numIterations;
+        double variance = 0;
+        for (int it=0; it<numIterations; it++) {
+            double d = executionTimes[it*NUM_TEST_VARIANTS + t] - mean;
+            variance += d*d;
+        }
+        variance = std::sqrt(variance / (numIterations - 1));
+        printf("Execution time width %-12s %5.3f +/- %6.3f milliseconds.\n",
+                (t < NUM_TEST_VARIANTS/2) ? "\"no data\":" : "NaN values:",
+                mean / 1E+6, variance / 1E+6);
     }
     std::cout << "Note: differences in execution times are not necessarily because of NaNs,\n"
               << "because the branch testing NaN intentionally performs more interpolations.\n"
