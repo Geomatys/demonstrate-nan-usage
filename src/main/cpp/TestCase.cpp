@@ -8,6 +8,7 @@
 #include <iostream>
 #include <filesystem>
 #include <cmath>
+#include <chrono>
 
 /*
  * The raster size, in pixels.
@@ -92,6 +93,11 @@ class TestCase {
          */
         int* nodataMismatches;
 
+        /*
+         * Execution time in nanoseconds.
+         */
+        double executionTime;
+
         TestCase(bool, std::endian);
         ~TestCase();
         float*  loadRaster();
@@ -103,6 +109,7 @@ class TestCase {
         virtual void computeAndCompare() = 0;
         bool    success();
         void    printStatistics();
+        void    printExecutionTime();
 };
 
 
@@ -122,6 +129,7 @@ TestCase::TestCase(bool testNaN, std::endian testByteOrder) {
     nodataMismatches     = new int[NUM_VERIFIED_ITERATIONS];
     memset(errorStatistics,  0, NUM_VERIFIED_ITERATIONS * sizeof(double));
     memset(nodataMismatches, 0, NUM_VERIFIED_ITERATIONS * sizeof(int));
+    executionTime = NAN;
 }
 
 /*
@@ -267,6 +275,14 @@ void TestCase::printStatistics() {
 }
 
 /*
+ * Prints the duration time of the part of `computeAndCompare()` that is doing numerical computations.
+ */
+void TestCase::printExecutionTime() {
+    printf("Execution time width %-12s %2.3f milliseconds.\n", useNaN ? "NaN values:" : "\"no data\":", executionTime / 1E+6);
+}
+
+
+/*
  * Returns the bit pattern of the given floating point number.
  * Equivalent to Java's `Float.floatToRawIntBits(float)`.
  *
@@ -324,6 +340,7 @@ TestNaN::TestNaN(std::endian testByteOrder) : TestCase(true, testByteOrder) {
  * This method is the interesting part of the tests, where both approaches (NaN versus "no data") differ.
  */
 void TestNaN::computeAndCompare() {
+    std::chrono::time_point<std::chrono::high_resolution_clock> startTime, endTime;
     float* raster = loadRaster();
     if (raster) {
         double* coordinates = loadCoordinates();
@@ -331,6 +348,7 @@ void TestNaN::computeAndCompare() {
             double* expectedResults = loadExpectedResults();
             if (expectedResults) {
                 double* expectedResultCursor = expectedResults;
+                startTime = std::chrono::high_resolution_clock::now();
                 for (int it=0; it<NUM_VERIFIED_ITERATIONS; it++) {
                     double stats = errorStatistics[it];
                     for (int i=0; i<NUM_INTERPOLATION_POINTS; i++) {
@@ -421,12 +439,14 @@ void TestNaN::computeAndCompare() {
                     }
                     errorStatistics[it] = stats;
                 }
+                endTime = std::chrono::high_resolution_clock::now();
                 free(expectedResults);
             }
             free(coordinates);
         }
         free(raster);
     }
+    executionTime = duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
 }
 
 
@@ -471,6 +491,7 @@ TestNodata::TestNodata(std::endian testByteOrder) : TestCase(false, testByteOrde
  * This method is the interesting part of the tests, where both approaches (NaN versus "no data") differ.
  */
 void TestNodata::computeAndCompare() {
+    std::chrono::time_point<std::chrono::high_resolution_clock> startTime, endTime;
     float* raster = loadRaster();
     if (raster) {
         double* coordinates = loadCoordinates();
@@ -478,6 +499,7 @@ void TestNodata::computeAndCompare() {
             double* expectedResults = loadExpectedResults();
             if (expectedResults) {
                 double* expectedResultCursor = expectedResults;
+                startTime = std::chrono::high_resolution_clock::now();
                 for (int it=0; it<NUM_VERIFIED_ITERATIONS; it++) {
                     double stats = errorStatistics[it];
                     for (int i=0; i<NUM_INTERPOLATION_POINTS; i++) {
@@ -550,12 +572,14 @@ void TestNodata::computeAndCompare() {
                     }
                     errorStatistics[it] = stats;
                 }
+                endTime = std::chrono::high_resolution_clock::now();
                 free(expectedResults);
             }
             free(coordinates);
         }
         free(raster);
     }
+    executionTime = duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
 }
 
 /*
@@ -581,6 +605,7 @@ void TestNodata::testAndCompare() {
         }
         if (!test) break;
         test->computeAndCompare();
+        test->printExecutionTime();
         success &= test->success();
         if (!resultEquals(test)) {
             test->printStatistics();
