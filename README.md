@@ -9,20 +9,60 @@ the classical approach based on Sentinel's "no data" values, used as a reference
 **Table of content:**
 
 * Misunderstandings about NaN
+  * ["NaNs are toxic"](#nans-are-toxic)
   * ["There is only one NaN, while we need many no-data values"](#there-is-only-one-nan-while-we-need-many-no-data-values)
   * ["Not the right semantic (we want `null`, `unknown`, …)"](#not-the-right-semantic-we-want-null-unknown-)
   * ["The payload that distinguishs NaN values may be lost"](#the-payload-that-distinguishs-nan-values-may-be-lost)
   * ["Payload propagation is implementation-dependent"](#payload-propagation-is-implementation-dependent)
 * [Analysis](#analysis)
   * [Code differences](#code-differences)
-  * [Note on C/C++](#note-on-cc)
-  * [Code on precision](#note-on-precision) (can easily be ignored)
+  * [Notes on C/C++](#note-on-cc)
+  * [Notes on precision](#note-on-precision) (can easily be ignored)
   * [Notes on an optimization strategy (optional)](#notes-on-an-optimization-strategy-optional)
 * [Running the tests](#running-the-tests)
 
 
 
 # Misunderstandings about NaN
+
+## "NaNs are toxic"
+NaNs change everything they touch to NaN. But this is exactly the desired feature.
+In `(x + y) / 2`, if `y` is unknown, then the result is unknown.
+Without NaNs, the classical approach is to use Sentinel's "no data" values such as -9999 below:
+
+```java
+if (x != -9999 && y != -9999) {
+    mean = (x + y) / 2;
+} else {
+    mean = -9999;
+}
+```
+
+NaNs make the above verifications unnecessary.
+This is not only a convenience, but also (most important) a safety.
+In complex applications, it is very likely that some tests will be forgotten,
+or that the developer will wrongly assume that -9999 will never reach some point.
+We can compare with buffer overflows caused by missing bound checks,
+which are still a major cause of bugs or security breaches despite decades of developers effort.
+Those problems can be unnoticed for some time before they cause harm.
+
+Example: when computing the average value of {23, 33, -9999, 30, 34} where -9999
+is a Sentinel's "no data" value that the developer forgot to replace, the result is -1975.8.
+At this point, the developer may still suspect that something is wrong, but the software will probably not.
+However, if the average is computed over 1000 random values in the [10 … 50] range, then the corrupted result
+is close to 20, well inside the range of valid values,
+potentially making the error unnoticeable even for the developer.
+
+Other example: the demo programs provided in this project check for missing values in raster data.
+However, it does not check for missing values in the coordinates of the points where to interpolate.
+If those coordinates were latitudes and longitudes, and if a map projection with trigonometric functions
+was involved in the calculation, then -9999° would be equivalent to 81° for `sin`, `cos` and `tan` functions.
+It can make corrupted values totally undistinguishable from valid values.
+
+Such floating point errors should not be taken slightly since, for example,
+the first Ariane V rocket exploded because of a floating-point overflow.
+The use of NaNs values avoids at least the risk that corruption caused by unchecked "no data" values stay unnoticed.
+
 
 ## "There is only one NaN, while we need many no-data values"
 This is false. The IEEE 754 `float` type has 8,388,608 distinct quiet NaN values
@@ -95,7 +135,7 @@ The fact that we don't know for sure _which_ NaN values is not worse than the ap
 For example, when computing the average value of {2, 8, 9999, 3} where 9999 represents a missing value,
 if developers forget to check for missing values, they will get 2503.
 Subsequent operations consuming that value are likely to fail to recognize 2503 as a missing value,
-leading to unpredictable consequences (the first Ariane V rocket exploded because of a floating-point overflow).
+leading to unpredictable consequences.
 By contrast, when using NaN, developers get a NaN result even if they forgot to check for missing values.
 Even if we are uncertain about _which_ NaN value was returned,
 it is still better than an accidental value indistinguishable from real values.
@@ -137,11 +177,11 @@ as developers are protected against Sentinel "no data" values accidentally corru
 ## Code differences
 The difference between the `TestNodata` and `TestNaN` is described on a [separate page](differences.md).
 
-## Note on C/C++
+## Notes on C/C++
 A note on the behavior of NaN in C/C++, especially regarding the  `-ffast-math` compiler option,
 is on a [separate page](note-on-cpp.md).
 
-## Note on precision
+## Notes on precision
 A minor note about floating point precision is on a [separate page](note-on-precision.md) but can easily be ignored.
 
 

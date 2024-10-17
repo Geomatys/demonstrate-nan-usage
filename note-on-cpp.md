@@ -49,6 +49,20 @@ inline int32_t floatToRawIntBits(float value) {
 }
 ```
 
+Alternatively, bit patterns can be read directly from the data array without transiting by a floating point type.
+This approach ensures that no FPU operation is involved, not even a copy
+(the truly paranoiacs could go further by applying `reinterpret_cast` on the byte array read from the file):
+
+```cpp
+void foo(float* rasterData, int x, int y) {
+    int32_t* dataAsInts = reinterpret_cast<int32_t*>(rasterData);
+    int      offset     = y * rasterWidth + x;
+    int32_t  bitPatern  = dataAsInts[offset];
+    float    value      = rasterData[offset];
+    // Do some stuff.
+}
+```
+
 
 ## Compliance
 By default, C/C++ compilers (or at least `gcc`) produces code compliant with IEEE / ISO rules.
@@ -84,3 +98,22 @@ This option and the `-fno-signed-zeros` option seems to have an effect mostly at
 and mostly on trivial code such as `x + 0.0`. In this test, we did not observe any change in
 the behavior of arithmetic operations and mathematical functions other than `std::isnan(…)`.
 These options may be a high risk for a performance gain that may not exist.
+
+
+## Detecting NaNs without floating point support
+If the `std::isnan(float)` function is not available, quiet NaNs can be detected from an array of
+IEEE 754 values interpreted as integers (e.g. using above `reinterpret_cast<int32_t*>`) as below:
+
+```cpp
+#define FIRST_QUIET_NAN 0x7FC00000
+
+void foo(int32_t* dataAsInts) {
+    int offset = ...;
+    if ((dataAsInts[offset] & FIRST_QUIET_NAN) == FIRST_QUIET_NAN) {
+        // We have a quiet NaN.
+    }
+}
+```
+
+For detecting both quiet and signaling NaNs, the mask would be slightly different and
+another condition would need to be added for differentiating NaN from infinite values.
