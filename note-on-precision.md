@@ -1,7 +1,7 @@
 # Notes on the precision
 
-In this tests, `v00`, `v01`, `v10` and `v11` are single-precision floating point numbers.
-This is explicit in Java and C/C++ code, but implicit and hard to see in the Python.
+In these tests, `v00`, `v01`, `v10` and `v11` are single-precision floating point numbers.
+This is explicit in Java and C/C++ code, but implicit and hard to see in the Python code.
 However, the effect is visible in the following calculation:
 
 ```python
@@ -9,9 +9,9 @@ v0 = (v01 - v00) * xf + v00
 v1 = (v11 - v10) * xf + v10
 ```
 
-If the values are not casted to `double`, then `(v01 - v00)` and (v11 - v10) are computed with single precision.
-The precision lost cause a faster drift from expected results. For forcing a cast to double-precision,
-the Java and C/C++ codes use the following:
+If the values are not cast to `double`, then `(v01 - v00)` and `(v11 - v10)` are computed with single precision.
+The precision lost causes a faster drift from the expected results. In order to force a cast to double-precision,
+the Java and C/C++ code use the following:
 
 ```java
 double v0 = (v01 - (double) v00) * xf + v00;
@@ -30,8 +30,8 @@ Note that this issue is unrelated to NaN.
 
 
 ## With cast to double-precision and use of FMA
-Below is the output of the Java and C/C++ tests,
-which uses `Math.fma(…)` and `std::fma` respectively.
+Below is the output of the Java and C/C++ tests
+that use `Math.fma(…)` and `std::fma`, respectively.
 
 ```
 Errors in the use of raster data with NaN values in big endian byte order:
@@ -51,7 +51,7 @@ Errors in the use of raster data with NaN values in big endian byte order:
 ## With cast to double-precision but without FMA
 Below is the output of the Python test.
 It is also the output of the Java and C/C++ tests when FMA is replaced by a
-multiplication followed by an addition. We observe a small lost of accuracy.
+multiplication followed by an addition. We observe a small loss of accuracy.
 Note that on the machine used for the test (Intel® Core™ i7-8750H) and the
 `gcc` compiler used (14.2.1 20240912 (Red Hat 14.2.1-3)), we get this output
 even with the `-ffast-math` option.

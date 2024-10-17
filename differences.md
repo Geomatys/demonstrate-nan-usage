@@ -2,12 +2,12 @@
 This page shows the main differences between the `TestNodata` and `TestNaN` classes.
 
 ## Missing values declaration
-The `TestNodata` class uses the following sentinel values for missing data:
+The `TestNodata` class uses the following Sentinel values for missing data:
 
 ```java
 /**
- * Sentinel value for a missing data. A value may be missing for different reasons,
- * which are identified by different sentinel values.
+ * Sentinel value for missing data. A value may be missing for different reasons,
+ * which are identified by different Sentinel values.
  */
 static final float UNKNOWN = 10000,
                    CLOUD   = 10001,
@@ -22,8 +22,8 @@ static final float MISSING_VALUE_THRESHOLD = UNKNOWN;
 ```
 
 Note that the `MISSING_VALUE_THRESHOLD` value is arbitrary and data-dependent, as it must be a value not used by real values.
-Changing the threshold can require changes in the code, for example if the threshold become a value smaller than valid values
-instead of greater. By contrast, an approach based on NaN does not need such arbitrary choice.
+Changing the threshold can require changes in the code, for example if the threshold becomes a value smaller than all of the valid values
+instead of greater than them. By contrast, an approach based on NaN does not need such an arbitrary choice.
 The `TestNaN` class uses the following NaN values for missing data:
 
 ```java
@@ -33,8 +33,8 @@ The `TestNaN` class uses the following NaN values for missing data:
 private static final int FIRST_QUIET_NAN = 0x7FC00000;
 
 /**
- * NaN bit pattern for a missing data. A value may be missing for different reasons,
- * which are identified by different NaN values.
+ * NaN bit pattern for missing data. A value may be missing for different reasons,
+ * which are identified by each of the different NaN values.
  */
 static final int UNKNOWN = FIRST_QUIET_NAN,      // This is the default NaN value in Java.
                  CLOUD   = FIRST_QUIET_NAN + 1,
@@ -45,9 +45,9 @@ static final int UNKNOWN = FIRST_QUIET_NAN,      // This is the default NaN valu
 
 ## Missing values check
 The `TestNodata` class uses the following code for checking for missing values.
-In this case, this check **must** be done before to use the values in formulas.
+In this case, this check **must** be done before using the values in formulas.
 The use of `max` is an optimization based on the fact that, in this test,
-the reasons why a value is considered missing are sorted in precedence order.
+the reasons why a value is considered missing are sorted in order of precedence.
 Production codes may be more complex if they cannot rely on this assumption.
 
 ```java
@@ -67,11 +67,11 @@ if (missingValueReason >= MISSING_VALUE_THRESHOLD) {
 ```
 
 The `TestNaN` class uses the following code for checking for missing values.
-Contrarily to `TestNodata`, in this case the developers are free to check before or after interpolations.
+In this case, contrary to `TestNodata`, the developers are free to check before or after any interpolation is computed.
 This example arbitrarily performs the check after the interpolation.
 The use of `max` below is the same trick as the one used above.
-Production codes may be more complex for the same reasons,
-but have no reason to be more complex than with "no data" sentinel values.
+Production codes may be more complex for the same reasons
+but have no reason to be more complex than with "no data" Sentinel values.
 
 ```java
 float v00, v01, v10, v11 = ...;   // The raster data to interpolate.
@@ -82,7 +82,7 @@ if (isNaN(result)) {
             max(floatToRawIntBits(v00), floatToRawIntBits(v01)),
             max(floatToRawIntBits(v10), floatToRawIntBits(v11)));
 
-    // Result was already NaN, but replace with another NaN with the selected reason.
+    // Result was already NaN, but replace with another NaN for the selected reason.
     result = intBitsToFloat(missingValueReason);
 }
 ```
@@ -90,9 +90,9 @@ if (isNaN(result)) {
 
 # Value missing for multiple reasons
 Handling NaN values as bit patterns allows a more advanced use case which is not possible
-(or at least not as efficiently) with "no data" sentinel values.
-Instead of associating the missing value reasons to different NaN values (over 2 millions possibilities),
-we can associate those reasons to different *bits*.
+(or at least not as efficiently) with "no data" Sentinel values.
+Instead of associating the missing value reasons to different NaN values (over 2 million possibilities),
+we can associate these reasons to different *bits*.
 The NaN payload has 21 bits (ignoring the signaling NaN bit and the sign bit),
 which gives room for 21 different reasons (or 22 if we use also the sign bit).
 The `TestNaN` code declaring NaN values can be replaced by the following:
@@ -105,7 +105,7 @@ static final int UNKNOWN = FIRST_QUIET_NAN,     // No bit set. This is the defau
                  OTHER   = FIRST_QUIET_NAN | 8;
 ```
 
-And the code computing the missing value reasons (previously using `max`) become as below:
+And the code computing the missing value reasons (previously using `max`) become the following:
 
 ```java
 if (isNaN(result)) {  // Optional, this check is also done by `if (missingValueReasons != 0)`.

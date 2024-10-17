@@ -1,7 +1,7 @@
 # Notes on C/C++
 The C/C++ standard library supports NaN values.
-Not only the standard defines a `NAN` constant and a `std::isnan(float)` function (among others),
-but the existence of multiple distinct NaN values is explicitly supported since the C++ 11 standard.
+Not only does the standard define an `NAN` constant and an `std::isnan(float)` function (among others),
+but the existence of multiple distinct NaN values has been explicitly supported since the introduction of the C++ 11 standard.
 
 * The `std::nanf(char*)` function generates a quiet NaN that can be used by library implementations to distinguish
   different NaN values (sources: [cplusplus.com](https://cplusplus.com/reference/cmath/nan-function/),
@@ -11,8 +11,8 @@ but the existence of multiple distinct NaN values is explicitly supported since 
 
 Note: in our tests with GCC 14.2.1 20240912 (Red Hat 14.2.1-3),
 `strtof` returns `7fc00000` for all character strings that do not represent a number.
-For character strings that represent a decimal number, that value seems to be simply added to `7fc00000`.
-Therefore, codes like below:
+For character strings that represent a decimal number, the value seems to be simply added to `7fc00000`.
+Therefore, code like the following:
 
 ```cpp
 const int32_t UNKNOWN = FIRST_QUIET_NAN,
@@ -30,16 +30,16 @@ const float UNKNOWN = std::nanf("0"),
             NO_PASS = std::nanf("3");
 ```
 
-Developers may which to keep former approach for better control.
+Developers may whish to keep the former approach for better control.
 However, it shows that the existence of multiple distinct NaN values is recognized by the C++ 11 standard.
-The documentation of `std::nanf(char*)` also said:
+The documentation of `std::nanf(char*)` also says:
 
 > If the implementation supports IEEE floating-point arithmetic (IEC 60559), it also supports quiet NaNs.
 
 
 ## Getting the bits of a float
 The following function is equivalent to `java.lang.Float.floatToRawIntBits(float)`.
-Note: NaN values have a sign bit (we can have "negative" NaN), so we really need the signed type below.
+Note: NaN values have a sign bit (we can have "negative" NaN values), so we really need the signed type shown below.
 The choice of signed or unsigned type changes the way that the `max` function will behave when checking
 which NaN has precedence in this test.
 
@@ -52,7 +52,7 @@ inline int32_t floatToRawIntBits(float value) {
 
 ## Compliance
 By default, C/C++ compilers (or at least `gcc`) produces code compliant with IEEE / ISO rules.
-The code generated with those default options passes the C/C++ test provided in this project.
+The code generated with these default options passes the C/C++ test provided in this project.
 However, the `gcc` compiler provide a `-ffast-math` option with the following warning:
 
 > This option is not turned on by any `-O` option besides `-Ofast` since it can result in incorrect output
@@ -60,7 +60,7 @@ However, the `gcc` compiler provide a `-ffast-math` option with the following wa
 > It may, however, yield faster code for programs that do not require the guarantees of these specifications.
 
 This project checks whether `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `floor`, `ceil`, `trunc`,
-`pow`, `sqrt`, `hypot` and `nanf` functions work as expected with NaN. The test shows that those functions
+`pow`, `sqrt`, `hypot` and `nanf` functions work as expected with NaN. The test shows that these functions
 continue to work as expected even with the `-ffast-math` option. The only function that fails is `std::isnan`.
 However, the following check:
 
@@ -80,7 +80,7 @@ that `missingValueReason` is computed. This test uses `max` operations, together
 quiet NaNs are greater than all other IEEE 754 values when compared as signed integers.
 
 However, developers should consider whether they really need the `-ffinite-math-only` option.
-This option and the `-fno-signed-zeros` option seem to have an effect mostly at compile-time,
-and mostly on trivial codes such as `x + 0.0`. We did not observed in this test any change of
+This option and the `-fno-signed-zeros` option seems to have an effect mostly at compile-time,
+and mostly on trivial code such as `x + 0.0`. In this test, we did not observe any change in
 the behavior of arithmetic operations and mathematical functions other than `std::isnan(…)`.
-Those options may be a high risk for a performance gain that may not exist.
+These options may be a high risk for a performance gain that may not exist.
