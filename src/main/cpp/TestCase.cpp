@@ -93,11 +93,6 @@ class TestCase {
          */
         int* nodataMismatches;
 
-        /*
-         * Execution time in nanoseconds.
-         */
-        double executionTime;
-
         TestCase(bool, std::endian);
         ~TestCase();
         float*  loadRaster();
@@ -106,10 +101,9 @@ class TestCase {
         bool    resultEquals(TestCase*);
 
     public:
-        virtual void computeAndCompare() = 0;
+        virtual double computeAndCompare() = 0;
         bool    success();
         void    printStatistics();
-        void    printExecutionTime();
 };
 
 
@@ -129,7 +123,6 @@ TestCase::TestCase(bool testNaN, std::endian testByteOrder) {
     nodataMismatches     = new int[NUM_VERIFIED_ITERATIONS];
     memset(errorStatistics,  0, NUM_VERIFIED_ITERATIONS * sizeof(double));
     memset(nodataMismatches, 0, NUM_VERIFIED_ITERATIONS * sizeof(int));
-    executionTime = NAN;
 }
 
 /*
@@ -274,12 +267,6 @@ void TestCase::printStatistics() {
     }
 }
 
-/*
- * Prints the duration time of the part of `computeAndCompare()` that is doing numerical computations.
- */
-void TestCase::printExecutionTime() {
-    printf("Execution time width %-12s %2.3f milliseconds.\n", useNaN ? "NaN values:" : "\"no data\":", executionTime / 1E+6);
-}
 
 
 /*
@@ -325,7 +312,7 @@ class TestNaN : public TestCase {
 
     public:
         TestNaN(std::endian testByteOrder);
-        void computeAndCompare();
+        double computeAndCompare();
 };
 
 /*
@@ -338,8 +325,9 @@ TestNaN::TestNaN(std::endian testByteOrder) : TestCase(true, testByteOrder) {
  * Reads the raster, performs interpolations and compares against the expected values.
  * Differences are collected in statistics that can be printed with `printStatistics()`.
  * This method is the interesting part of the tests, where both approaches (NaN versus "no data") differ.
+ * It returns the execution time (in nanoseconds) of the numerical computation part.
  */
-void TestNaN::computeAndCompare() {
+double TestNaN::computeAndCompare() {
     std::chrono::time_point<std::chrono::high_resolution_clock> startTime, endTime;
     float* raster = loadRaster();
     if (raster) {
@@ -446,7 +434,7 @@ void TestNaN::computeAndCompare() {
         }
         free(raster);
     }
-    executionTime = duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
+    return duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
 }
 
 
@@ -475,8 +463,8 @@ class TestNodata : public TestCase {
 
     public:
         TestNodata(std::endian testByteOrder);
-        void computeAndCompare();
-        void testAndCompare();
+        double computeAndCompare();
+        bool testAndCompare(double*, bool);
 };
 
 /*
@@ -489,8 +477,9 @@ TestNodata::TestNodata(std::endian testByteOrder) : TestCase(false, testByteOrde
  * Reads the raster, performs interpolations and compares against the expected values.
  * Differences are collected in statistics that can be printed with `printStatistics()`.
  * This method is the interesting part of the tests, where both approaches (NaN versus "no data") differ.
+ * It returns the execution time (in nanoseconds) of the numerical computation part.
  */
-void TestNodata::computeAndCompare() {
+double TestNodata::computeAndCompare() {
     std::chrono::time_point<std::chrono::high_resolution_clock> startTime, endTime;
     float* raster = loadRaster();
     if (raster) {
@@ -579,16 +568,16 @@ void TestNodata::computeAndCompare() {
         }
         free(raster);
     }
-    executionTime = duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
+    return duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
 }
 
 /*
  * Run many variants of the tests (with "no data", with NaN).
  * The instance on which this method is invoked is taken as the reference.
  * It should be an instance using "no data" sentinel values, for avoiding
- * any doubt.
+ * any doubt. This method returns whether the test was successful.
  */
-void TestNodata::testAndCompare() {
+bool TestNodata::testAndCompare(double* executionTimes, bool printStatistics) {
     TestNodata nodataLittleEndian(std::endian::little);
     TestNaN    nanBigEndian      (std::endian::big);
     TestNaN    nanLittleEndian   (std::endian::little);
@@ -604,20 +593,17 @@ void TestNodata::testAndCompare() {
             default: test = NULL; break;
         }
         if (!test) break;
-        test->computeAndCompare();
-        test->printExecutionTime();
+        executionTimes[t] += test->computeAndCompare();
         success &= test->success();
         if (!resultEquals(test)) {
             test->printStatistics();
             success = false;
         }
     }
-    if (success) {
+    if (success && printStatistics) {
         nanBigEndian.printStatistics();
-        std::cout << "Success (mismatches in the last iterations are normal).\n";
-    } else {
-        std::cout << "TEST FAILURE.\n";
     }
+    return success;
 }
 
 
@@ -681,7 +667,23 @@ int main() {
     /*
      * The test loading a RAW file.
      */
-    TestNodata test(std::endian::big);
-    test.testAndCompare();
+    double executionTimes[4];
+    memset(executionTimes, 0, 4 * sizeof(double));
+    for (int it = 20; --it >= 0;) {
+        TestNodata test(std::endian::big);
+        if (!test.testAndCompare(executionTimes, it == 0)) {
+            std::cout << "TEST FAILURE.\n";
+            return 1;
+        }
+    }
+    std::cout << "Success (mismatches in the last iterations are normal).\n";
+    for (int i=0; i<4; i++) {
+        printf("Execution time width %-12s %7.3f milliseconds.\n",
+                (i < 2) ? "NaN values:" : "\"no data\":",
+                executionTimes[i] / 1E+6);
+    }
+    std::cout << "Note: differences in execution times are not necessarily because of NaNs,\n"
+              << "because the branch testing NaN intentionally performs more interpolations.\n"
+              << '\n';
     return 0;
 }
