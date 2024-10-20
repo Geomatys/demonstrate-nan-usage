@@ -390,18 +390,18 @@ double TestNaN::computeAndCompare() {
                          * ALTERNATIVE WITHOUT std::isnan(float)
                          * ═════════════════════════════════════
                          * For using this code in a context where `std::isnan` is not reliable (i.e., when the GCC
-                         * `-ffast-math` option is used), the `missingValueReason` calculation can be moved before
-                         * the `if` statement, and the `if` statement can be replaced by the following:
+                         * `-ffast-math` option is used), the `missingValueReason` calculation is moved before the
+                         * `if` statement, and the `if` statement has been replaced by the following:
                          *
                          *     if (missingValueReason >= FIRST_QUIET_NAN) { ... }
                          *
                          * This trick uses the fact that "positive" quiet NaNs are greater than all other IEEE 754
                          * values when compared as signed integers.
                          */
-                        if (std::isnan(result)) {
-                            int32_t missingValueReason = std::max(
-                                    std::max(floatToRawIntBits(v00), floatToRawIntBits(v01)),
-                                    std::max(floatToRawIntBits(v10), floatToRawIntBits(v11)));
+                        int32_t missingValueReason = std::max(
+                                std::max(floatToRawIntBits(v00), floatToRawIntBits(v01)),
+                                std::max(floatToRawIntBits(v10), floatToRawIntBits(v11)));
+                        if (missingValueReason >= FIRST_QUIET_NAN) {
                             /*
                              * Convert the NaN pattern to the "no data" sentinel value used by `DataGenerator`.
                              * This step is not needed in an application using NaN. This test is doing that
@@ -608,62 +608,9 @@ bool TestNodata::testAndCompare(double* executionTimes, bool printStatistics) {
 
 
 /*
- * Helper method for diagnostic before test in the main method.
- */
-void printNaNSupport(const char* functionName, double result) {
-    printf("Test support in %-6s %f\n", functionName, result);
-}
-
-/*
- * Helper method for testing `std::nanf(const char*)` in the main method.
- */
-void testDistinctNaN(const char* tagp) {
-    float value = std::nanf(tagp);
-    printf("%-8s isNaN=%s, bits=%8x\n", tagp, std::isnan(value) ? "true" : "false", floatToRawIntBits(value));
-}
-
-/*
- * Test the support of NaN in a few mathematical functions, then run the test.
+ * Runs the test.
  */
 int main() {
-    float n = rand();
-    printNaNSupport("+:",     n + NAN);
-    printNaNSupport("-:",     n - NAN);
-    printNaNSupport("*:",     n * NAN);
-    printNaNSupport("/:",     n / NAN);
-    printNaNSupport("sin:",   std::sin  (NAN));
-    printNaNSupport("cos:",   std::cos  (NAN));
-    printNaNSupport("tan:",   std::tan  (NAN));
-    printNaNSupport("asin:",  std::asin (NAN));
-    printNaNSupport("acos:",  std::acos (NAN));
-    printNaNSupport("atan:",  std::atan (NAN));
-    printNaNSupport("atan2:", std::atan2(NAN, 1));
-    printNaNSupport("floor:", std::floor(NAN));
-    printNaNSupport("ceil:",  std::ceil (NAN));
-    printNaNSupport("trunc:", std::trunc(NAN));
-    printNaNSupport("pow:",   std::pow  (NAN, 2));
-    printNaNSupport("sqrt:",  std::sqrt (NAN));
-    printNaNSupport("hypot:", std::hypot(NAN, 3));
-    printf("Test support in %-6s %s\n", "isnan:", std::isnan(n + NAN) ? "ok" : "FAIL");
-    #ifdef __FAST_MATH__
-    std::cout << "Fast math option detected.\n";
-    #endif
-    /*
-     * Bonus: the C++ 11 standard has methods for creating distincts quiet NaN values,
-     * and even for parsing them from character strings.
-     */
-    std::cout << '\n';
-    std::cout << "Test the std::nanf(char*) function from C++ 11 standard:\n";
-    testDistinctNaN("cloud");
-    testDistinctNaN("land");
-    testDistinctNaN("no_pass");
-    testDistinctNaN("1");
-    testDistinctNaN("2");
-    testDistinctNaN("35");
-    testDistinctNaN("400");
-    printf("%s bits=%8x\n", "strtof(\"NAN(cloud)\"):", floatToRawIntBits(std::strtof("NAN(cloud)", NULL)));
-    printf("%s bits=%8x\n", "strtof(\"NAN(2)\"):",     floatToRawIntBits(std::strtof("NAN(2)", NULL)));
-    std::cout << '\n';
     /*
      * The test loading a RAW file. The same tests are executed many times
      * in order to perform time measurements.

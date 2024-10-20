@@ -19,7 +19,7 @@ set(CMAKE_BUILD_TYPE Release)
 # can also work even with `-ffinite-math-only` with a minor change in the code.
 # See "note-on-cpp.md" for more information.
 #
-add_compile_options(-ffast-math -fno-finite-math-only)
+add_compile_options(-ffast-math)
 
 # Create an executable.
 add_executable(NaN-test TestCase.cpp)
